@@ -1,8 +1,8 @@
 #!/bin/sh
 
-# export GOOS=android
-# export GOARCH=arm64
-# export CGO_ENABLED=1
+export GOOS=android
+export GOARCH=arm64
+export CGO_ENABLED=1
 # 
 # #-androidapi=31
 # # -buildmode c-archive -o outputfilename.a 
@@ -12,5 +12,5 @@
 
 go get -d golang.org/x/mobile/cmd/gomobile
 
-gomobile bind -target android -androidapi=31 -o lib/android/zklib.aar
+gomobile bind -target=android/arm64 -androidapi=31 -o build/android/zklib.aar
 

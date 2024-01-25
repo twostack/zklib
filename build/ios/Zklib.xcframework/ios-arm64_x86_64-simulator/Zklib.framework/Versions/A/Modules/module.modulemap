@@ -1,0 +1,8 @@
+framework module "Zklib" {
+	header "ref.h"
+    header "Zklib.objc.h"
+    header "Universe.objc.h"
+    header "Zklib.h"
+
+    export *
+}
