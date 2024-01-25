@@ -1,5 +1,5 @@
 
-package zklib
+package main
 
 import "fmt"
 
