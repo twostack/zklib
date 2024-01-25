@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/mobilib.iml" filepath="$PROJECT_DIR$/.idea/mobilib.iml" />
+      <module fileurl="file://$PROJECT_DIR$/zklib.iml" filepath="$PROJECT_DIR$/zklib.iml" />
     </modules>
   </component>
 </project>
