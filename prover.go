@@ -8,12 +8,16 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/uints"
+	"log"
+	"os"
 	"time"
 	groth162 "zklib/groth16"
 )
 
 //export
 func GenerateAndVerify() string {
+
+	logger := log.New(os.Stdout, "INFO: ", log.Ltime)
 
 	start := time.Now()
 	var circuit groth162.Sha256Circuit
@@ -24,6 +28,7 @@ func GenerateAndVerify() string {
 
 	progress := time.Since(start)
 	message := fmt.Sprintf("Circuit Compile took : %s \n", progress)
+	logger.Print(message)
 
 	if err != nil {
 		return "Error compiling circuit"
@@ -34,6 +39,7 @@ func GenerateAndVerify() string {
 
 	progress = time.Since(start)
 	message = fmt.Sprintf("%sCircuit Setup took : %s \n ", message, progress)
+	logger.Print(message)
 
 	if err != nil {
 		return "Error during setup"
@@ -63,7 +69,7 @@ func GenerateAndVerify() string {
 
 	start = time.Now()
 
-	fmt.Println("Creating proof...")
+	logger.Println("Creating proof...")
 	proof, err := groth16.Prove(arithCircuit, pk, fullWitness)
 	if err != nil {
 		return "proof generation failed"
@@ -71,8 +77,9 @@ func GenerateAndVerify() string {
 
 	progress = time.Since(start)
 	message = fmt.Sprintf("%sProof generation took : %s \n ", message, progress)
+	logger.Print(message)
 
-	fmt.Println("Creating public fullWitness...")
+	logger.Println("Creating public fullWitness...")
 	publicWitness, err := fullWitness.Public()
 	if err != nil {
 		return "Failed to create public fullWitness object"
@@ -80,7 +87,7 @@ func GenerateAndVerify() string {
 
 	progress = time.Since(start)
 
-	fmt.Println("Verifying proof...")
+	logger.Println("Verifying proof...")
 	err = groth16.Verify(proof, vk, publicWitness)
 
 	if err != nil {
@@ -89,6 +96,7 @@ func GenerateAndVerify() string {
 
 	progress = time.Since(start)
 	message = fmt.Sprintf("%sProof verify took : %s \n", message, progress)
+	logger.Print(message)
 
 	return message
 }
