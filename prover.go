@@ -11,16 +11,16 @@ import (
 	"log"
 	"os"
 	"time"
-	groth162 "zklib/groth16"
+	"zklib/recurse"
 )
 
-//export
+// export
 func GenerateAndVerify() string {
 
 	logger := log.New(os.Stdout, "INFO: ", log.Ltime)
 
 	start := time.Now()
-	var circuit groth162.Sha256Circuit
+	var circuit recurse.Sha256InnerCircuit
 
 	fmt.Println(len([]byte("something")))
 
@@ -53,10 +53,10 @@ func GenerateAndVerify() string {
 	var tmpHash [32]uints.U8
 
 	copy(tmpHash[:], uints.NewU8Array(digest[:]))
-	assignment := &groth162.Sha256Circuit{
-		Hash: tmpHash,
+	assignment := &recurse.Sha256InnerCircuit{
+		CurrTxId: tmpHash,
 	}
-	copy(assignment.PreImage[:], uints.NewU8Array([]byte("something")))
+	copy(assignment.CurrTxId[:], uints.NewU8Array([]byte("something")))
 
 	//fmt.Println(hex.EncodeToString(digest[:]))
 

@@ -1,0 +1,142 @@
+package recurse
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
+	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/std/math/uints"
+	"github.com/consensys/gnark/test"
+	"math/big"
+	"testing"
+)
+
+func TestInnerProof1(t *testing.T) {
+	//innerCcs, innerVK, innerWitness, innerProof :=
+	//computeInnerProof(ecc.BLS12_377.ScalarField())
+	//currTxId := []byte("ac2ed2a0a9fabd31b9d0165a0f2fdc6e4daf3469149f7e2de83a88a6f8783a19")
+	//currTxId := []byte("193a78f8a6883ae82d7e9f146934af4d6edc2f0f5a16d0b931bdfaa9a0d22eac") //reversed TxId
+
+	prefixBytes, _ := hex.DecodeString("0200000001")
+	prevTxnIdBytes, _ := hex.DecodeString("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
+	postFixBytes, _ := hex.DecodeString("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff")
+
+	fullTxBytes, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff")
+
+	//prefix : 0200000001
+	//prevTxnId : ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19
+	//postFix :  000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff
+
+	//fullTx := append(prefix, prevTxnId...)
+	//fullTx = append(fullTx, postFix...)
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	currTxId := sha256.Sum256(firstHash[:]) //prefix hash
+
+	witness := Sha256InnerCircuit{}
+	copy(witness.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(witness.CurrTxPost[:], uints.NewU8Array(postFixBytes))
+	copy(witness.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
+	copy(witness.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+
+	// inner proof
+	testCircuit := Sha256InnerCircuit{
+		//PreImage: uints.NewU8Array(fullTxBytes),
+	}
+	copy(testCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(testCircuit.CurrTxPost[:], uints.NewU8Array(postFixBytes))
+	copy(testCircuit.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
+
+	err := test.IsSolved(&testCircuit, &witness, ecc.BLS12_377.ScalarField())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	//assert := test.NewAssert(t)
+	//
+	//assert.ProverSucceeded(&testCircuit, &Sha256InnerCircuit{
+	//	Hash: witness.Hash,
+	//}, test.WithCurves(ecc.BLS12_377))
+	//
+	//// initialize the witness elements
+	//circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//circuitWitness, err := stdgroth16.ValueOfWitness[sw_bls12377.Scalar, sw_bls12377.G1Affine](innerWitness)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//circuitProof, err := stdgroth16.ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
+	//if err != nil {
+	//	panic(err)
+	//}
+
+}
+
+func TestInnerProof2(t *testing.T) {
+	//innerCcs, innerVK, innerWitness, innerProof :=
+	computeInnerProof(ecc.BLS12_377.ScalarField())
+
+}
+
+// computeInnerProof computes the proof for the inner circuit we want to verify
+// recursively. In this example the Groth16 keys are generated on the fly, but
+// in practice should be genrated once and using MPC.
+func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
+	/*
+		innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &Sha256InnerCircuit{})
+		if err != nil {
+			panic(err)
+		}
+		// NB! UNSAFE! Use MPC.
+		innerPK, innerVK, err := groth16.Setup(innerCcs)
+		if err != nil {
+			panic(err)
+		}
+
+		//currTxId := []byte("ac2ed2a0a9fabd31b9d0165a0f2fdc6e4daf3469149f7e2de83a88a6f8783a19") //reversed TxId
+
+		prefix := []byte("0200000001")
+
+		currTxId := sha256.Sum256(prefix) //reversed TxId
+
+		prevTxnId := []byte("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
+		postFix := []byte("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff")
+		//prefix : 0200000001
+		//prevTxnId : ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19
+		//postFix :  000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff
+
+		// inner proof
+		innerAssignment := &Sha256InnerCircuit{}
+
+		copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefix[:]))
+		copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFix[:]))
+		copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnId[:]))
+		copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+
+		innerWitness, err := frontend.NewWitness(innerAssignment, field)
+		if err != nil {
+			panic(err)
+		}
+		innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness)
+		if err != nil {
+			panic(err)
+		}
+		innerPubWitness, err := innerWitness.Public()
+		if err != nil {
+			panic(err)
+		}
+		err = groth16.Verify(innerProof, innerVK, innerPubWitness)
+		if err != nil {
+			panic(err)
+		}
+
+
+		return innerCcs, innerVK, innerPubWitness, innerProof
+	*/
+	return nil, nil, nil, nil
+}
