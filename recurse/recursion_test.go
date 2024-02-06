@@ -7,6 +7,8 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 	"math/big"
@@ -58,7 +60,7 @@ func TestInnerProofCircuit(t *testing.T) {
 
 }
 
-func TestInnerProof2(t *testing.T) {
+func TestInnerProofComputeAndVerify(t *testing.T) {
 	//innerCcs, innerVK, innerWitness, innerProof :=
 	computeInnerProof(ecc.BLS12_377.ScalarField())
 
@@ -66,58 +68,51 @@ func TestInnerProof2(t *testing.T) {
 
 // computeInnerProof computes the proof for the inner circuit we want to verify
 // recursively. In this example the Groth16 keys are generated on the fly, but
-// in practice should be genrated once and using MPC.
+// in practice should be generated once and using MPC.
 func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
-	/*
-		innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &Sha256InnerCircuit{})
-		if err != nil {
-			panic(err)
-		}
-		// NB! UNSAFE! Use MPC.
-		innerPK, innerVK, err := groth16.Setup(innerCcs)
-		if err != nil {
-			panic(err)
-		}
+	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &Sha256InnerCircuit{})
+	if err != nil {
+		panic(err)
+	}
+	// NB! UNSAFE! Use MPC.
+	innerPK, innerVK, err := groth16.Setup(innerCcs)
+	if err != nil {
+		panic(err)
+	}
 
-		//currTxId := []byte("ac2ed2a0a9fabd31b9d0165a0f2fdc6e4daf3469149f7e2de83a88a6f8783a19") //reversed TxId
+	prefixBytes, _ := hex.DecodeString("0200000001")
+	prevTxnIdBytes, _ := hex.DecodeString("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
+	postFixBytes, _ := hex.DecodeString("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff")
 
-		prefix := []byte("0200000001")
+	fullTxBytes, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff")
 
-		currTxId := sha256.Sum256(prefix) //reversed TxId
+	firstHash := sha256.Sum256(fullTxBytes) //reversed TxId
+	currTxId := sha256.Sum256(firstHash[:]) //reversed TxId
 
-		prevTxnId := []byte("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
-		postFix := []byte("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff")
-		//prefix : 0200000001
-		//prevTxnId : ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19
-		//postFix :  000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff
+	// inner proof
+	innerAssignment := &Sha256InnerCircuit{}
 
-		// inner proof
-		innerAssignment := &Sha256InnerCircuit{}
+	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
+	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
+	copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
-		copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefix[:]))
-		copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFix[:]))
-		copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnId[:]))
-		copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+	innerWitness, err := frontend.NewWitness(innerAssignment, field)
+	if err != nil {
+		panic(err)
+	}
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness)
+	if err != nil {
+		panic(err)
+	}
+	innerPubWitness, err := innerWitness.Public()
+	if err != nil {
+		panic(err)
+	}
+	err = groth16.Verify(innerProof, innerVK, innerPubWitness)
+	if err != nil {
+		panic(err)
+	}
 
-		innerWitness, err := frontend.NewWitness(innerAssignment, field)
-		if err != nil {
-			panic(err)
-		}
-		innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness)
-		if err != nil {
-			panic(err)
-		}
-		innerPubWitness, err := innerWitness.Public()
-		if err != nil {
-			panic(err)
-		}
-		err = groth16.Verify(innerProof, innerVK, innerPubWitness)
-		if err != nil {
-			panic(err)
-		}
-
-
-		return innerCcs, innerVK, innerPubWitness, innerProof
-	*/
-	return nil, nil, nil, nil
+	return innerCcs, innerVK, innerPubWitness, innerProof
 }
