@@ -5,8 +5,9 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/hash/sha2"
+	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
-	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
+	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
 )
 
 // export
@@ -22,7 +23,7 @@ it requires :
 type Sha256InnerCircuit struct {
 	CurrTxPrefix [5]uints.U8 //5
 	PrevTxId     [32]uints.U8
-	CurrTxPost   [81]uints.U8 //81
+	CurrTxPost   [154]uints.U8 //81
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
@@ -78,10 +79,10 @@ func calculateSha256(api frontend.API, preImage []uints.U8) ([]uints.U8, error) 
 	return res, nil
 }
 
-type Sha256OuterCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	InnerProof   stdgroth16.Proof[G1El, G2El]
-	VerifyingKey stdgroth16.VerifyingKey[G1El, G2El, GtEl]
-	InnerWitness stdgroth16.Witness[S] //the currTx for this must be set in-circuit to ensure the bond between the two
+type Sha256OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
+	Proof        stdplonk.Proof[FR, G1El, G2El]
+	VerifyingKey stdplonk.VerifyingKey[FR, G1El, G2El] `gnark:"-"` // constant verification key
+	InnerWitness stdplonk.Witness[FR]                  `gnark:",public"`
 
 	/* The PrevTxId of the Outer Circuit must be matched and equal to the CurrTxId of the InnerProof.
 	   Because the InnerProof that we are verifying for the current Transaction
@@ -91,7 +92,7 @@ type Sha256OuterCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra
 	   will need to look at current Txn, extract these public values.
 	   And use them to validate the provided Outer Proof.
 	*/
-	PrevTxId [32]uints.U8 `gnark:",public"`
+	//PrevTxId [32]uints.U8 `gnark:",public"`
 	//CurrTxId [32]uints.U8 `gnark:",public"`
 }
 
@@ -103,40 +104,35 @@ type Sha256OuterCircuit[S algebra.ScalarT, G1El algebra.G1ElementT, G2El algebra
 //		InnerWitness: stdgroth16.PlaceholderWitness[sw_bls12377.Scalar](innerCcs),
 //		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
 //	}
-func (circuit *Sha256OuterCircuit[S, G1El, G2El, GtEl]) Define(api frontend.API) error {
+func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
 	/**
 	Following section of code is copied from the nonnative_doc_test.go example
 	*/
-	/*
-		curve, err := algebra.GetCurve[S, G1El](api)
-		if err != nil {
-			return fmt.Errorf("new curve: %w", err)
-		}
-		pairing, err := algebra.GetPairing[G1El, G2El, GtEl](api)
-		if err != nil {
-			return fmt.Errorf("get pairing: %w", err)
-		}
-		verifier := stdgroth16.NewVerifier(curve, pairing)
+	verifier, err := stdplonk.NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+	err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness)
+	return err
 
-		//set innerWitness.CurrTxId to circuit.PrevTxId
-		innerCircuit := &Sha256InnerCircuit{
-			CurrTxId: circuit.PrevTxId,
-		}
-		pubWitness, err := frontend.NewWitness(innerCircuit, ecc.BLS12_377.ScalarField())
+	//set innerWitness.CurrTxId to circuit.PrevTxId
+	//innerCircuit := &Sha256InnerCircuit{
+	//	CurrTxId: circuit.PrevTxId,
+	//}
+	//pubWitness, err := frontend.NewWitness(innerCircuit, ecc.BLS12_377.ScalarField())
+	//
+	//witnessVal, err := stdgroth16.ValueOfWitness[S, G1El](pubWitness)
+	//
+	//witness := stdgroth16.Witness[S]{
+	//	Public: witnessVal.Public,
+	//}
 
-		witnessVal, err := stdgroth16.ValueOfWitness[S, G1El](pubWitness)
+	//err = verifier.AssertProof(circuit.VerifyingKey, circuit.InnerProof, witness) // circuit.InnerWitness
+	//err = verifier.AssertProof(circuit.VerifyingKey, circuit.InnerProof, circuit.InnerWitness)
 
-		witness := stdgroth16.Witness[S]{
-			Public: witnessVal.Public,
-		}
+	//return err
 
-		err = verifier.AssertProof(circuit.VerifyingKey, circuit.InnerProof, witness) // circuit.InnerWitness
-
-		return err
-
-	*/
-	return nil
 	//NOTE: Check whether we might need to also mess with the CurrentTxId somehow in the outer proof
 	//      I don't think we need to try and explicitly pass that info though. It should be implicitly
 	//      carried as public part of Witness in Outer Circuit's Proof (yes ? )
