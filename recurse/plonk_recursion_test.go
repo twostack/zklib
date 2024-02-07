@@ -30,6 +30,7 @@ func TestInnerProofCircuitPlonk(t *testing.T) {
 
 	firstHash := sha256.Sum256(fullTxBytes)
 	currTxId := sha256.Sum256(firstHash[:])
+	fmt.Println(currTxId)
 
 	fmt.Println(hex.EncodeToString(currTxId[:]))
 
@@ -80,7 +81,7 @@ func TestInnerProofComputeAndVerifyPlonk(t *testing.T) {
 	Example_emulated()
 }
 
-func TestOuterProofAndVerifyPlonk(t *testing.T) {
+func TestOuterProofAndVerifyPlonkSuccinct(t *testing.T) {
 
 	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
 	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
@@ -111,6 +112,47 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 	}
+
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+
+}
+
+func TestOuterProofAndVerifyPlonk(t *testing.T) {
+
+	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
+	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
+
+	//innerCcs, innerVK, innerWitness, innerProof :=
+	assert := test.NewAssert(t)
+	innerCcs, innerVK, innerWitness, innerProof := computeInnerProofPlonk(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+
+	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
+	if err != nil {
+		panic(err)
+	}
+	circuitWitness, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
+	if err != nil {
+		panic(err)
+	}
+	circuitProof, err := plonk.ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
+	if err != nil {
+		panic(err)
+	}
+
+	prevTxnIdBytes, _ := hex.DecodeString("193a78f8a6883ae82d7e9f146934af4d6edc2f0f5a16d0b931bdfaa9a0d22eac")
+	outerCircuit := &Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		InnerWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
+		Proof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		VerifyingKey: circuitVk,
+	}
+	copy(outerCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+
+	outerAssignment := &Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+	}
+	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 
 	// compile the outer circuit
 	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, outerCircuit)
@@ -188,6 +230,7 @@ func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constra
 	firstHash := sha256.Sum256(fullTxBytes)
 	currTxId := sha256.Sum256(firstHash[:])
 
+	fmt.Println(hex.EncodeToString(currTxId[:]))
 	// inner proof
 	innerAssignment := &Sha256InnerCircuit{}
 
@@ -210,74 +253,74 @@ func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constra
 
 // /emulation takes donkey years. Probably impractical
 func Example_emulated() {
-	/*
-		// compute the proof which we want to verify recursively
-		innerCcs, innerVK, innerWitness, innerProof := computeInnerProofPlonk(ecc.BW6_761.ScalarField(), ecc.BN254.ScalarField())
+	/* can't set fr.Element from type expr.Term
+	// compute the proof which we want to verify recursively
+	innerCcs, innerVK, innerWitness, innerProof := computeInnerProofPlonk(ecc.BW6_761.ScalarField(), ecc.BN254.ScalarField())
 
-		// initialize the witness elements
-		circuitVk, err := plonk.ValueOfVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK)
-		if err != nil {
-			panic(err)
-		}
-		circuitWitness, err := plonk.ValueOfWitness[sw_bw6761.ScalarField](innerWitness)
-		if err != nil {
-			panic(err)
-		}
-		circuitProof, err := plonk.ValueOfProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof)
-		if err != nil {
-			panic(err)
-		}
+	// initialize the witness elements
+	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerVK)
+	if err != nil {
+		panic(err)
+	}
+	circuitWitness, err := plonk.ValueOfWitness[sw_bw6761.ScalarField](innerWitness)
+	if err != nil {
+		panic(err)
+	}
+	circuitProof, err := plonk.ValueOfProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerProof)
+	if err != nil {
+		panic(err)
+	}
 
-		outerCircuit := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
-			InnerWitness: plonk.PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
-			Proof:        plonk.PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
-			VerifyingKey: circuitVk,
-		}
-		outerAssignment := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
-			InnerWitness: circuitWitness,
-			Proof:        circuitProof,
-		}
-		// compile the outer circuit
-		ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuit)
-		if err != nil {
-			panic("compile failed: " + err.Error())
-		}
+	outerCircuit := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: plonk.PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
+		Proof:        plonk.PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
+		VerifyingKey: circuitVk,
+	}
+	outerAssignment := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+		InnerWitness: circuitWitness,
+		Proof:        circuitProof,
+	}
+	// compile the outer circuit
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuit)
+	if err != nil {
+		panic("compile failed: " + err.Error())
+	}
 
-		// NB! UNSAFE! Use MPC.
-		srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
-		if err != nil {
-			panic(err)
-		}
+	// NB! UNSAFE! Use MPC.
+	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
+	if err != nil {
+		panic(err)
+	}
 
-		// create PLONK setup. NB! UNSAFE
-		pk, vk, err := native_plonk.Setup(ccs, srs, srsLagrange) // UNSAFE! Use MPC
-		if err != nil {
-			panic("setup failed: " + err.Error())
-		}
+	// create PLONK setup. NB! UNSAFE
+	pk, vk, err := native_plonk.Setup(ccs, srs, srsLagrange) // UNSAFE! Use MPC
+	if err != nil {
+		panic("setup failed: " + err.Error())
+	}
 
-		// create prover witness from the assignment
-		secretWitness, err := frontend.NewWitness(outerAssignment, ecc.BN254.ScalarField())
-		if err != nil {
-			panic("secret witness failed: " + err.Error())
-		}
+	// create prover witness from the assignment
+	secretWitness, err := frontend.NewWitness(outerAssignment, ecc.BN254.ScalarField())
+	if err != nil {
+		panic("secret witness failed: " + err.Error())
+	}
 
-		// create public witness from the assignment
-		publicWitness, err := secretWitness.Public()
-		if err != nil {
-			panic("public witness failed: " + err.Error())
-		}
+	// create public witness from the assignment
+	publicWitness, err := secretWitness.Public()
+	if err != nil {
+		panic("public witness failed: " + err.Error())
+	}
 
-		// construct the PLONK proof of verifying PLONK proof in-circuit
-		outerProof, err := native_plonk.Prove(ccs, pk, secretWitness)
-		if err != nil {
-			panic("proving failed: " + err.Error())
-		}
+	// construct the PLONK proof of verifying PLONK proof in-circuit
+	outerProof, err := native_plonk.Prove(ccs, pk, secretWitness)
+	if err != nil {
+		panic("proving failed: " + err.Error())
+	}
 
-		// verify the PLONK proof
-		err = native_plonk.Verify(outerProof, vk, publicWitness)
-		if err != nil {
-			panic("circuit verification failed: " + err.Error())
-		}
+	// verify the PLONK proof
+	err = native_plonk.Verify(outerProof, vk, publicWitness)
+	if err != nil {
+		panic("circuit verification failed: " + err.Error())
+	}
 
 	*/
 }

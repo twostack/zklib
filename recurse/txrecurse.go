@@ -5,6 +5,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/hash/sha2"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
@@ -92,7 +93,7 @@ type Sha256OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 	   will need to look at current Txn, extract these public values.
 	   And use them to validate the provided Outer Proof.
 	*/
-	//PrevTxId [32]uints.U8 `gnark:",public"`
+	PrevTxId [32]uints.U8 `gnark:",public"`
 	//CurrTxId [32]uints.U8 `gnark:",public"`
 }
 
@@ -113,27 +114,17 @@ func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
-	//err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness)
+
+	/*
+	  It would be sufficient to assert that the value of
+	  circuit.InnerWitness.Public must == circuit.PrevTxId
+	*/
 
 	err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness, stdplonk.WithCompleteArithmetic())
-	return err
 
-	//set innerWitness.CurrTxId to circuit.PrevTxId
-	//innerCircuit := &Sha256InnerCircuit{
-	//	CurrTxId: circuit.PrevTxId,
-	//}
-	//pubWitness, err := frontend.NewWitness(innerCircuit, ecc.BLS12_377.ScalarField())
-	//
-	//witnessVal, err := stdgroth16.ValueOfWitness[S, G1El](pubWitness)
-	//
-	//witness := stdgroth16.Witness[S]{
-	//	Public: witnessVal.Public,
-	//}
-
-	//err = verifier.AssertProof(circuit.VerifyingKey, circuit.InnerProof, witness) // circuit.InnerWitness
-	//err = verifier.AssertProof(circuit.VerifyingKey, circuit.InnerProof, circuit.InnerWitness)
-
-	//return err
+	if err != nil {
+		return err
+	}
 
 	//NOTE: Check whether we might need to also mess with the CurrentTxId somehow in the outer proof
 	//      I don't think we need to try and explicitly pass that info though. It should be implicitly
@@ -144,8 +135,15 @@ func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 		public input (PrevTxId) is provided as part of the Witness of the Outer Circuit along with PrevProof
 	*/
 
-	//extract CurrentRawTx[PrevOutpoint]
+	field, err := emulated.NewField[FR](api)
+	uapi, err := uints.New[uints.U32](api)
+	for i := range circuit.PrevTxId {
+		innerBits := field.ToBits(&circuit.InnerWitness.Public[i])
+		innerVal := bits.FromBinary(api, innerBits)
+		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(innerVal))
+		//api.AssertIsEqual(circuit.PrevTxId[i].Val, innerVal)
+	}
 
-	//assert that CurrentRawTx[PrevOutpoint] == PrevTxId
+	return nil
 
 }
