@@ -86,7 +86,8 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
 
 	//innerCcs, innerVK, innerWitness, innerProof :=
-	innerCcs, innerVK, innerWitness, innerProof := computeInnerProofPlonk(ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
+	assert := test.NewAssert(t)
+	innerCcs, innerVK, innerWitness, innerProof := computeInnerProofPlonk(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
 
 	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
 	if err != nil {
@@ -110,6 +111,7 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 	}
+
 	// compile the outer circuit
 	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, outerCircuit)
 	if err != nil {
@@ -157,7 +159,7 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 // recursively. In this example the Groth16 keys are generated on the fly, but
 // in practice should be generated once and using MPC.
 
-func computeInnerProofPlonk(field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
+func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
 	//func computeInnerProofPlonk(field *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
 	//innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &Sha256InnerCircuit{})
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &Sha256InnerCircuit{})
@@ -195,23 +197,15 @@ func computeInnerProofPlonk(field, outer *big.Int) (constraint.ConstraintSystem,
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
-	if err != nil {
-		panic(err)
-	}
-	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness)
-	if err != nil {
-		panic(err)
-	}
+	assert.NoError(err)
+	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness, plonk.GetNativeProverOptions(outer, field))
+	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
-	if err != nil {
-		panic(err)
-	}
-	err = native_plonk.Verify(innerProof, innerVK, innerPubWitness)
-	if err != nil {
-		panic(err)
-	}
-
+	assert.NoError(err)
+	err = native_plonk.Verify(innerProof, innerVK, innerPubWitness, plonk.GetNativeVerifierOptions(outer, field))
+	assert.NoError(err)
 	return innerCcs, innerVK, innerPubWitness, innerProof
+
 }
 
 // /emulation takes donkey years. Probably impractical

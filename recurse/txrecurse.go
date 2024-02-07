@@ -113,7 +113,9 @@ func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
-	err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness)
+	//err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness)
+
+	err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness, stdplonk.WithCompleteArithmetic())
 	return err
 
 	//set innerWitness.CurrTxId to circuit.PrevTxId
