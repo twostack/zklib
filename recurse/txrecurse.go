@@ -11,16 +11,9 @@ import (
 	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
 )
 
-// export
-/* We can use the generic OuterCircuit provided by framework,
-it requires :
-   Proof, VerifyingKey (to verify the previous proof ? )
-   InnerWitness ( containing public inputs for previous proof ? )
-
-*/
-
-// proof of CurrTxId being equal to
-// sha256(CurrTxPrefix || PrevTxId || CurrTxPost)
+// circuit that proves in zero knowledge that there exists
+// a Transaction with Id == CurrTxId which is composed of
+// sha256(sha256(CurrTxPrefix || PrevTxId || CurrTxPost))
 type Sha256InnerCircuit struct {
 	CurrTxPrefix [5]uints.U8 //5
 	PrevTxId     [32]uints.U8
@@ -94,17 +87,13 @@ type Sha256OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 	   And use them to validate the provided Outer Proof.
 	*/
 	PrevTxId [32]uints.U8 `gnark:",public"`
-	//CurrTxId [32]uints.U8 `gnark:",public"`
 }
 
-// Define
-// A simple circuit for generating a proof that attests that the
-// prover knows the pre-image to a sha256 hash
+/*
+*
 
-//	outerCircuit := &OuterCircuit[sw_bls12377.Scalar, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-//		InnerWitness: stdgroth16.PlaceholderWitness[sw_bls12377.Scalar](innerCcs),
-//		VerifyingKey: stdgroth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerCcs),
-//	}
+	The outer circuit for our recursive proof that accumulates a chain of transactions.
+*/
 func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
 	/**
