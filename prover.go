@@ -31,43 +31,26 @@ func compileInnerCiruit() (constraint.ConstraintSystem, error) {
 	return innerCcs, nil
 }
 
-func SetupInnerProof() (constraint.ConstraintSystem, native_plonk.VerifyingKey, native_plonk.ProvingKey, error) {
-
-	innerCcs, err := compileInnerCiruit()
-
-	if err != nil {
-		panic(err)
-	}
+func SetupInnerProof(innerCcs constraint.ConstraintSystem) (native_plonk.VerifyingKey, native_plonk.ProvingKey, error) {
 
 	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 
 	if err != nil {
-		panic(err)
+		return nil, nil, err
 	}
 
 	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	return innerCcs, innerVK, innerPK, nil
+	return innerVK, innerPK, nil
 
 }
 
-func CreateInnerWitness(prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte) (witness.Witness, error) {
+func CreateInnerWitness(prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte, currTxId []byte) (witness.Witness, error) {
 	innerField := ecc.BLS12_377.ScalarField()
 
-	//prefixBytes, _ := hex.DecodeString("0200000001")
-	//prevTxnIdBytes, _ := hex.DecodeString("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
-	//postFixBytes, _ := hex.DecodeString("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
-
-	fullTxBytes, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
-
-	firstHash := sha256.Sum256(fullTxBytes)
-	currTxId := sha256.Sum256(firstHash[:])
-
-	fmt.Println(hex.EncodeToString(currTxId[:]))
-	// inner proof
 	innerAssignment := &recurse.Sha256InnerCircuit{}
 
 	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
@@ -101,6 +84,54 @@ func VerifyInnerProof(publicWitness witness.Witness, innerProof native_plonk.Pro
 	} else {
 		fmt.Println(err)
 		return false
+	}
+}
+
+func createProof() {
+
+	innerCcs, err := compileInnerCiruit()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	innerVK, innerPK, err := SetupInnerProof(innerCcs)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	prefixBytes, _ := hex.DecodeString("0200000001")
+	prevTxnIdBytes, _ := hex.DecodeString("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
+	postFixBytes, _ := hex.DecodeString("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
+	fullTxBytes, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	currTxId := sha256.Sum256(firstHash[:])
+
+	innerWitness, err := CreateInnerWitness(prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	innerProof, err := GenerateInnerProof(innerWitness, innerCcs, innerPK)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	innerPubWitness, err := innerWitness.Public()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	var isValid = VerifyInnerProof(innerPubWitness, innerProof, innerVK)
+
+	if isValid == false {
+		fmt.Println("Proof Failed !")
 	}
 }
 
