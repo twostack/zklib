@@ -1,7 +1,6 @@
 package zklib
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -21,7 +20,18 @@ import (
 	"zklib/recurse"
 )
 
-func compileInnerCiruit() (constraint.ConstraintSystem, error) {
+/*
+Proof object to encapsulate the behaviour of
+doing setup just once, and then repeatedly
+constructing and verifying proofs and
+*/
+type ProofObj struct {
+	ccs          constraint.ConstraintSystem
+	verifyingKey native_plonk.VerifyingKey
+	provingKey   native_plonk.ProvingKey
+}
+
+func CompileInnerCiruit() (constraint.ConstraintSystem, error) {
 	innerField := ecc.BLS12_377.ScalarField()
 	innerCcs, err := frontend.Compile(innerField, scs.NewBuilder, &recurse.Sha256InnerCircuit{})
 	if err != nil {
@@ -31,8 +41,9 @@ func compileInnerCiruit() (constraint.ConstraintSystem, error) {
 	return innerCcs, nil
 }
 
-func SetupInnerProof(innerCcs constraint.ConstraintSystem) (native_plonk.VerifyingKey, native_plonk.ProvingKey, error) {
+func SetupCircuit(innerCcs constraint.ConstraintSystem) (native_plonk.VerifyingKey, native_plonk.ProvingKey, error) {
 
+	start := time.Now()
 	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
 
 	if err != nil {
@@ -43,6 +54,8 @@ func SetupInnerProof(innerCcs constraint.ConstraintSystem) (native_plonk.Verifyi
 	if err != nil {
 		return nil, nil, err
 	}
+	end := time.Since(start)
+	fmt.Printf("Circuit Setup took : %s\n", end)
 
 	return innerVK, innerPK, nil
 
@@ -87,53 +100,92 @@ func VerifyInnerProof(publicWitness witness.Witness, innerProof native_plonk.Pro
 	}
 }
 
-func createProof() {
+// generate innerVK, innerPK, compiled circuit and save to disk
+func GenerateCircuitParams() error {
 
-	innerCcs, err := compileInnerCiruit()
+	innerCcs, err := CompileInnerCiruit()
 
 	if err != nil {
 		fmt.Println(err)
-		return
+		return err
 	}
 
-	innerVK, innerPK, err := SetupInnerProof(innerCcs)
+	innerVK, innerPK, err := SetupCircuit(innerCcs)
+
+	//circuitFile, err := os.Create("circuit.json")
+	//innerCcs.WriteTo(circuitFile)
+	//if err != nil {
+	//	log.Fatal(err)
+	//	return err
+	//}
+	//circuitFile.Close()
+
+	start := time.Now()
+	innerVKFile, err := os.Create("innervk.cbor")
+	innerVK.WriteTo(innerVKFile)
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Fatal(err)
+		return err
 	}
+	innerVKFile.Close()
+	end := time.Since(start)
+	fmt.Printf("Writing Inner Verifying Key took : %s\n", end)
 
-	prefixBytes, _ := hex.DecodeString("0200000001")
-	prevTxnIdBytes, _ := hex.DecodeString("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
-	postFixBytes, _ := hex.DecodeString("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
-	fullTxBytes, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
-
-	firstHash := sha256.Sum256(fullTxBytes)
-	currTxId := sha256.Sum256(firstHash[:])
-
-	innerWitness, err := CreateInnerWitness(prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
+	start = time.Now()
+	innerPKFile, err := os.Create("innerpk.cbor")
+	innerPK.WriteTo(innerPKFile)
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Fatal(err)
+		return err
 	}
+	innerPKFile.Close()
+	end = time.Since(start)
+	fmt.Printf("Writing Proving Key took : %s\n", end)
 
-	innerProof, err := GenerateInnerProof(innerWitness, innerCcs, innerPK)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	innerPubWitness, err := innerWitness.Public()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	var isValid = VerifyInnerProof(innerPubWitness, innerProof, innerVK)
-
-	if isValid == false {
-		fmt.Println("Proof Failed !")
-	}
+	return nil
 }
+
+func UnmarshalCircuitParams() (native_plonk.VerifyingKey, native_plonk.ProvingKey, constraint.ConstraintSystem, error) {
+
+	//just compile. I don't think this takes long
+	start := time.Now()
+	ccs, err := CompileInnerCiruit()
+	if err != nil {
+		log.Fatal(err)
+		return nil, nil, nil, err
+	}
+	end := time.Since(start)
+	fmt.Printf("Compiler took : %s\n", end)
+
+	start = time.Now()
+	innerVKFile, err := os.OpenFile("innervk.cbor", os.O_RDONLY, 0444) //read-only
+	if err != nil {
+		log.Fatal(err)
+		return nil, nil, nil, err
+	}
+	innerVK := native_plonk.NewVerifyingKey(ecc.BLS12_377) //curve for inner circuit
+	innerVK.ReadFrom(innerVKFile)
+	innerVKFile.Close()
+	end = time.Since(start)
+	fmt.Printf("Verifying Key took : %s\n", end)
+
+	start = time.Now()
+	innerPKFile, err := os.OpenFile("innerpk.cbor", os.O_RDONLY, 0444)
+	if err != nil {
+		log.Fatal(err)
+		return nil, nil, nil, err
+	}
+	innerPK := native_plonk.NewProvingKey(ecc.BLS12_377) //curve for inner circuit
+	innerPK.ReadFrom(innerPKFile)
+	innerPKFile.Close()
+	end = time.Since(start)
+	fmt.Printf("Proving Key took : %s\n", end)
+
+	return innerVK, innerPK, ccs, nil
+
+}
+
+//provide VK, PK and Circuit
 
 func SetupOuterProof() {
 
