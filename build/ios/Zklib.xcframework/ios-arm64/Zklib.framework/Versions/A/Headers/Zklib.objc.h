@@ -11,9 +11,53 @@
 #include "Universe.objc.h"
 
 
+@class ZklibProofObj;
+
+/**
+ * Proof object to encapsulate the behaviour of
+doing setup just once, and then repeatedly
+constructing and verifying proofs and
+ */
+@interface ZklibProofObj : NSObject <goSeqRefInterface> {
+}
+@property(strong, readonly) _Nonnull id _ref;
+
+- (nonnull instancetype)initWithRef:(_Nonnull id)ref;
+- (nonnull instancetype)init;
+@end
+
+// skipped function CompileInnerCiruit with unsupported parameter or return types
+
+
+// skipped function CreateInnerWitness with unsupported parameter or return types
+
+
 /**
  * export
  */
 FOUNDATION_EXPORT NSString* _Nonnull ZklibGenerateAndVerify(void);
+
+/**
+ * generate innerVK, innerPK, compiled circuit and save to disk
+ */
+FOUNDATION_EXPORT BOOL ZklibGenerateCircuitParams(NSError* _Nullable* _Nullable error);
+
+// skipped function GenerateInnerProof with unsupported parameter or return types
+
+
+FOUNDATION_EXPORT void ZklibGenerateOuterProof(void);
+
+// skipped function SetupCircuit with unsupported parameter or return types
+
+
+FOUNDATION_EXPORT void ZklibSetupOuterProof(void);
+
+// skipped function UnmarshalCircuitParams with unsupported parameter or return types
+
+
+// skipped function VerifyInnerProof with unsupported parameter or return types
+
+
+FOUNDATION_EXPORT void ZklibVerifyOuterProof(void);
 
 #endif
