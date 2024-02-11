@@ -202,7 +202,7 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 // in practice should be generated once and using MPC.
 
 func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
-	//func computeInnerProofPlonk(field *big.Int) (constraint.ConstraintSystem, plonk.VerifyingKey, witness.Witness, plonk.Proof) {
+	//func computeInnerProofPlonk(field *big.Int) (constraint.ConstraintSystem, plonk.PreviousVk, witness.Witness, plonk.PreviousProof) {
 	//innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &Sha256InnerCircuit{})
 	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &Sha256InnerCircuit{})
 
@@ -272,13 +272,13 @@ func Example_emulated() {
 	}
 
 	outerCircuit := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
-		InnerWitness: plonk.PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
-		Proof:        plonk.PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
-		VerifyingKey: circuitVk,
+		PreviousWitness: plonk.PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
+		PreviousProof:        plonk.PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
+		PreviousVk: circuitVk,
 	}
 	outerAssignment := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
-		InnerWitness: circuitWitness,
-		Proof:        circuitProof,
+		PreviousWitness: circuitWitness,
+		PreviousProof:        circuitProof,
 	}
 	// compile the outer circuit
 	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuit)

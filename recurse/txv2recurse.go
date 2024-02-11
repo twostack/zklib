@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
 )
 
 type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	Proof        stdplonk.Proof[FR, G1El, G2El]
-	VerifyingKey stdplonk.VerifyingKey[FR, G1El, G2El] `gnark:"-"` // constant verification key
-	InnerWitness stdplonk.Witness[FR]                  `gnark:",public"`
+	PreviousProof stdplonk.Proof[FR, G1El, G2El]
+	PreviousVk    stdplonk.VerifyingKey[FR, G1El, G2El] `gnark:"-"` // constant verification key
 
 	CurrTxPrefix [5]uints.U8 //5
 	PrevTxId     [32]uints.U8
@@ -21,6 +21,9 @@ type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 	TokenId  [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+
+	//placing Witness at the end so TokenId offset is more easily calculated
+	PreviousWitness stdplonk.Witness[FR] `gnark:",public"`
 }
 
 func isNullArray(arr []uints.U8) bool {
@@ -37,10 +40,27 @@ func isNullArray(arr []uints.U8) bool {
 func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
 	//Set PrevTxId to null for genesis, and assert that current TxId is TokenId
-	if isNullArray(circuit.PrevTxId[:]) {
-		api.AssertIsEqual(circuit.TokenId, circuit.CurrTxId)
+	uapi, err := uints.New[uints.U32](api)
+	if isNullArray(circuit.PrevTxId[:]) || (circuit.PreviousWitness.Public == nil) {
+
+		//it's genesis. We must enforce equality of tokenid and current txid
+		for i := range circuit.TokenId {
+			uapi.ByteAssertEq(circuit.TokenId[i], circuit.CurrTxId[i])
+		}
+
+		return nil
 	}
 
+	//assert that the token ID is being preserved
+	field, err := emulated.NewField[FR](api)
+	tokenOffset := 32 //FIXME: Figure out the proper tokenId offset in public variables
+	for i := range circuit.TokenId {
+		witnessTokenIdBits := field.ToBits(&circuit.PreviousWitness.Public[i+tokenOffset])
+		witnessTokenId := bits.FromBinary(api, witnessTokenIdBits)
+		uapi.ByteAssertEq(circuit.TokenId[i], uapi.ByteValueOf(witnessTokenId))
+	}
+
+	//reconstitute the transaction hex
 	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
 	fullTx = append(fullTx, circuit.CurrTxPost[:]...)
 
@@ -56,39 +76,22 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 
 	//loop over the individual bytes of the calculated hash
 	//and compare them to the expected digest
-	uapi, err := uints.New[uints.U32](api)
 	for i := range circuit.CurrTxId {
 		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
 	}
 
-	/**
-	Following section of code is copied from the nonnative_doc_test.go example
-	*/
+	//  construct a verifier in-circuit
 	verifier, err := stdplonk.NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
 
-	/*
-	  It would be sufficient to assert that the value of
-	  circuit.InnerWitness.Public must == circuit.PrevTxId
-	*/
-
-	err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness, stdplonk.WithCompleteArithmetic())
+	//verify the previous proof
+	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdplonk.WithCompleteArithmetic())
 
 	if err != nil {
 		return err
 	}
 
 	return nil
-	/*
-		field, err := emulated.NewField[FR](api)
-		uapi, err := uints.New[uints.U32](api)
-		for i := range circuit.PrevTxId {
-			innerBits := field.ToBits(&circuit.InnerWitness.Public[i])
-			innerVal := bits.FromBinary(api, innerBits)
-			uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(innerVal))
-			//api.AssertIsEqual(circuit.PrevTxId[i].Val, innerVal)
-		}
-	*/
 }

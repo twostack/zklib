@@ -84,7 +84,7 @@ type Sha256OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 
 	   Furthermore, both of the following must be public, because the verifying wallet
 	   will need to look at current Txn, extract these public values.
-	   And use them to validate the provided Outer Proof.
+	   And use them to validate the provided Outer PreviousProof.
 	*/
 	PrevTxId [32]uints.U8 `gnark:",public"`
 }
@@ -106,7 +106,7 @@ func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 
 	/*
 	  It would be sufficient to assert that the value of
-	  circuit.InnerWitness.Public must == circuit.PrevTxId
+	  circuit.PreviousWitness.Public must == circuit.PrevTxId
 	*/
 
 	err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness, stdplonk.WithCompleteArithmetic())
@@ -117,7 +117,7 @@ func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 
 	//NOTE: Check whether we might need to also mess with the CurrentTxId somehow in the outer proof
 	//      I don't think we need to try and explicitly pass that info though. It should be implicitly
-	//      carried as public part of Witness in Outer Circuit's Proof (yes ? )
+	//      carried as public part of Witness in Outer Circuit's PreviousProof (yes ? )
 
 	/*
 		The following might be sufficient for the recursive case, since the

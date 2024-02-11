@@ -65,7 +65,7 @@ func testCreateAndVerify() {
 		return
 	}
 	end = time.Since(start)
-	fmt.Printf("Generated Inner Proof: %s\n", end)
+	fmt.Printf("Generated Inner PreviousProof: %s\n", end)
 
 	start = time.Now()
 
@@ -78,10 +78,10 @@ func testCreateAndVerify() {
 	var isValid = zklib.VerifyInnerProof(innerPubWitness, innerProof, innerVK)
 
 	if isValid == false {
-		fmt.Println("Proof Failed !")
+		fmt.Println("PreviousProof Failed !")
 	}
 
 	end = time.Since(start)
-	fmt.Printf("Verified Inner Proof: %s\n", end)
+	fmt.Printf("Verified Inner PreviousProof: %s\n", end)
 
 }

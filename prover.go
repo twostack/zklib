@@ -18,7 +18,7 @@ import (
 )
 
 /*
-Proof object to encapsulate the behaviour of
+PreviousProof object to encapsulate the behaviour of
 doing setup just once, and then repeatedly
 constructing and verifying proofs and
 */
@@ -187,9 +187,9 @@ func UnmarshalCircuitParams() (native_plonk.VerifyingKey, native_plonk.ProvingKe
 /*
 func SetupOuterProof(
 	innerCcs constraint.ConstraintSystem,
-	innerVK native_plonk.VerifyingKey,
+	innerVK native_plonk.PreviousVk,
 	innerWitness witness.Witness,
-	innerProof native_plonk.Proof,
+	innerProof native_plonk.PreviousProof,
 	prevTxnIdBytes []byte, //, _ := hex.DecodeString("193a78f8a6883ae82d7e9f146934af4d6edc2f0f5a16d0b931bdfaa9a0d22eac")
 ) {
 
@@ -209,15 +209,15 @@ func SetupOuterProof(
 	}
 
 	outerCircuit := &recurse.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		InnerWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
-		Proof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
-		VerifyingKey: circuitVk,
+		PreviousWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
+		PreviousProof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		PreviousVk: circuitVk,
 	}
 	copy(outerCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 
 	outerAssignment := &recurse.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		InnerWitness: circuitWitness,
-		Proof:        circuitProof,
+		PreviousWitness: circuitWitness,
+		PreviousProof:        circuitProof,
 	}
 	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 
