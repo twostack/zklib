@@ -119,7 +119,7 @@ func GenerateCircuitParams() error {
 
 	start := time.Now()
 	innerVKFile, err := os.Create("innervk.cbor")
-	innerVK.WriteTo(innerVKFile)
+	innerVK.WriteRawTo(innerVKFile)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -130,7 +130,7 @@ func GenerateCircuitParams() error {
 
 	start = time.Now()
 	innerPKFile, err := os.Create("innerpk.cbor")
-	innerPK.WriteTo(innerPKFile)
+	innerPK.WriteRawTo(innerPKFile)
 	if err != nil {
 		log.Fatal(err)
 		return err

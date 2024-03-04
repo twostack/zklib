@@ -28,9 +28,10 @@ func TestInitialRecursion(t *testing.T) {
 	assert := test.NewAssert(t)
 
 	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
+	outerField := ecc.BLS12_377.ScalarField()
 
-	innerCcs, provingKey, verifyingKey, err := setupCircuitParams(innerField)
+	//innerCcs, provingKey, verifyingKey, err := setupCircuitParams(innerField)
+	innerCcs, provingKey, verifyingKey, err := setupBaseCase(innerField)
 	if err != nil {
 		panic(err)
 	}
@@ -101,10 +102,32 @@ func createFullWitness(
 	return innerWitness, nil
 }
 
+func setupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
+
+	baseCcs, err := frontend.Compile(innerField, scs.NewBuilder,
+		&Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G1Affine, sw_bls12377.GT]{})
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	srs, srsLagrange, err := unsafekzg.NewSRS(baseCcs)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	innerPK, innerVK, err := native_plonk.Setup(baseCcs, srs, srsLagrange)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return baseCcs, innerPK, innerVK, nil
+}
+
 func setupCircuitParams(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
 
 	innerCcs, err := frontend.Compile(innerField, scs.NewBuilder,
-		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
+		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G1Affine, sw_bls12377.GT]{})
 
 	if err != nil {
 		return nil, nil, nil, err

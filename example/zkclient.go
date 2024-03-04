@@ -11,8 +11,8 @@ import (
 func main() {
 	start := time.Now()
 	//zklib.GenerateCircuitParams()
-	//zklib.UnmarshalCircuitParams()
-	testCreateAndVerify()
+	zklib.UnmarshalCircuitParams()
+	//testCreateAndVerify()
 	end := time.Since(start)
 
 	fmt.Printf("It took : %s", end)
