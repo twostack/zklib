@@ -23,6 +23,43 @@ func computeGenesisProof() {
 
 }
 
+func TestBaseCase(t *testing.T) {
+
+	assert := test.NewAssert(t)
+
+	innerField := ecc.BLS12_377.ScalarField()
+	outerField := ecc.BLS12_377.ScalarField()
+
+	innerCcs, provingKey, verifyingKey, err := setupBaseCase(innerField)
+	if err != nil {
+		panic(err)
+	}
+
+	prefixBytes, _ := hex.DecodeString("0200000001")
+	prevTxnIdBytes, _ := hex.DecodeString("ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19")
+	postFixBytes, _ := hex.DecodeString("000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
+
+	fullTxBytes, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	genesisTxId := sha256.Sum256(firstHash[:])
+
+	//fmt.Println(hex.EncodeToString(genesisTxId[:]))
+	// create full genesis witness (placeholders, prevTxnIdBytes is empty
+	//vk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](verifyingKey)
+	genesisWitness, err := createBaseCaseWitness(prefixBytes, postFixBytes, prevTxnIdBytes, genesisTxId)
+
+	assert.NoError(err)
+	genesisProof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
+
+	//verify the genesis proof
+	assert.NoError(err)
+	publicWitness, err := genesisWitness.Public()
+	assert.NoError(err)
+	err = native_plonk.Verify(genesisProof, verifyingKey, publicWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
+	assert.NoError(err)
+}
+
 func TestInitialRecursion(t *testing.T) {
 
 	assert := test.NewAssert(t)
@@ -67,6 +104,29 @@ func TestInitialRecursion(t *testing.T) {
 	//gw, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](genesisWitness)
 	//issuanceWitness, err := createFullWitness(gw, previousProof, vk, prefixBytes, postFixBytes, genesisPrevTxnIdBytes, genesisTxId, innerField)
 	//issuanceProof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
+}
+
+func createBaseCaseWitness(
+	prefixBytes []byte,
+	postFixBytes []byte,
+	prevTxnIdBytes []byte,
+	currTxId [32]byte,
+) (witness.Witness, error) {
+
+	innerAssignment := Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G1Affine, sw_bls12377.GT]{}
+
+	//assign the current Txn data
+	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
+	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
+	copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
+
+	innerWitness, err := frontend.NewWitness(&innerAssignment, ecc.BLS12_377.ScalarField())
+	if err != nil {
+		return nil, err
+	}
+	return innerWitness, nil
 }
 
 func createFullWitness(
