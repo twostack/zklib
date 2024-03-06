@@ -15,7 +15,7 @@ import (
 	"math/big"
 )
 
-func setupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
+func SetupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
 
 	baseCcs, err := frontend.Compile(innerField, scs.NewBuilder,
 		&Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
@@ -48,7 +48,7 @@ func createBaseCaseProof(fullTxBytes []byte, prefixBytes []byte, prevTxnIdBytes 
 	innerField := ecc.BLS12_377.ScalarField()
 	outerField := ecc.BW6_761.ScalarField()
 
-	innerCcs, provingKey, verifyingKey, err := setupBaseCase(innerField)
+	innerCcs, provingKey, verifyingKey, err := SetupBaseCase(innerField)
 	if err != nil {
 		panic(err)
 	}
@@ -89,11 +89,13 @@ func createBaseCaseWitness(
 func createOuterAssignment(
 	circuitWitness plonk.Witness[sw_bls12377.ScalarField],
 	circuitProof plonk.Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine],
+	verifyingKey plonk.VerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine],
 	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, fullTxBytes []byte) Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT] {
 
 	outerAssignment := Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		PreviousWitness: circuitWitness,
 		PreviousProof:   circuitProof,
+		PreviousVk:      verifyingKey,
 	}
 
 	firstHash := sha256.Sum256(fullTxBytes)
