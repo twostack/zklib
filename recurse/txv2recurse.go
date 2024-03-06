@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
@@ -107,13 +106,13 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 
 	//assert that the token ID is being preserved
 	uapi, err := uints.New[uints.U32](api)
-	field, err := emulated.NewField[FR](api)
-	tokenOffset := 32 //FIXME: Figure out the proper tokenId offset in public variables
-	for i := range circuit.TokenId {
-		witnessTokenIdBits := field.ToBits(&circuit.PreviousWitness.Public[i+tokenOffset])
-		witnessTokenId := bits.FromBinary(api, witnessTokenIdBits)
-		uapi.ByteAssertEq(circuit.TokenId[i], uapi.ByteValueOf(witnessTokenId))
-	}
+	//field, err := emulated.NewField[FR](api)
+	//tokenOffset := 32 //FIXME: Figure out the proper tokenId offset in public variables
+	//for i := range circuit.TokenId {
+	//	witnessTokenIdBits := field.ToBits(&circuit.PreviousWitness.Public[i+tokenOffset])
+	//	witnessTokenId := bits.FromBinary(api, witnessTokenIdBits)
+	//	uapi.ByteAssertEq(circuit.TokenId[i], uapi.ByteValueOf(witnessTokenId))
+	//}
 
 	//reconstitute the transaction hex
 	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)

@@ -60,11 +60,16 @@ func TestBaseCase(t *testing.T) {
 
 // circuitVk plonk.VerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine],
 func createBaseCaseProof() (
+	constraint.ConstraintSystem,
 	native_plonk.VerifyingKey,
-	native_plonk.Proof) {
+	native_plonk.ProvingKey,
+	witness.Witness,
+	native_plonk.Proof,
+) {
 
 	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BLS12_377.ScalarField()
+	//outerField := ecc.BLS12_377.ScalarField()
+	outerField := ecc.BW6_761.ScalarField()
 
 	innerCcs, provingKey, verifyingKey, err := setupBaseCase(innerField)
 	if err != nil {
@@ -86,7 +91,7 @@ func createBaseCaseProof() (
 
 	proof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
 
-	return verifyingKey, proof
+	return innerCcs, verifyingKey, provingKey, genesisWitness, proof
 }
 
 func TestInitialRecursion(t *testing.T) {
@@ -95,12 +100,7 @@ func TestInitialRecursion(t *testing.T) {
 
 	innerField := ecc.BLS12_377.ScalarField()
 	outerField := ecc.BLS12_377.ScalarField()
-
-	//innerCcs, provingKey, verifyingKey, err := setupCircuitParams(innerField)
-	innerCcs, provingKey, verifyingKey, err := setupBaseCase(innerField)
-	if err != nil {
-		panic(err)
-	}
+	//outerField := ecc.BW6_761.ScalarField()
 
 	prefixBytes, _ := hex.DecodeString("0200000001")
 	prevTxnIdBytes, _ := hex.DecodeString("faf3013aab53ae122e6cfdef7720c7a785fed4ce7f8f3dd19379f31e62651c71")
@@ -113,15 +113,16 @@ func TestInitialRecursion(t *testing.T) {
 
 	//fmt.Println(hex.EncodeToString(genesisTxId[:]))
 	// create full genesis witness (placeholders, prevTxnIdBytes is empty
-	innerAssignment := Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G1Affine, sw_bls12377.GT]{}
+	innerAssignment := Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}
 
 	//assign the current Txn data
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(prevTxnIdBytes[:])) //coincidentally that in this test prev txn is issuance
 	copy(innerAssignment.TokenId[:], uints.NewU8Array(prevTxnIdBytes[:]))  //base case tokenId == txId
 	previousWitness, err := frontend.NewWitness(&innerAssignment, ecc.BLS12_377.ScalarField())
 
-	verifyingKey, previousProof := createBaseCaseProof()
+	innerCcs, verifyingKey, provingKey, genesisWitness, previousProof := createBaseCaseProof()
 
+	//outerField := ecc.BW6_761.ScalarField()
 	innerWitness, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](previousWitness) //FIXME: Check if this breaks because witness structure sizes
 	innerProof, err := plonk.ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](previousProof)
 
@@ -130,10 +131,10 @@ func TestInitialRecursion(t *testing.T) {
 	tokenId := [32]byte{}
 
 	copy(tokenId[:], prevTxnIdBytes)
-	genesisWitness, err := createFullWitness(innerWitness, innerProof, vk, prefixBytes, postFixBytes, prevTxnIdBytes, currTxId, tokenId /*tokenid*/, innerField)
+	fullWitness, err := createFullWitness(innerWitness, innerProof, vk, prefixBytes, postFixBytes, prevTxnIdBytes, currTxId, tokenId /*tokenid*/, innerField)
 
 	assert.NoError(err)
-	genesisProof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
+	genesisProof, err := native_plonk.Prove(innerCcs, provingKey, fullWitness, plonk.GetNativeProverOptions(outerField, innerField))
 
 	//verify the genesis proof
 	assert.NoError(err)
@@ -155,7 +156,7 @@ func createBaseCaseWitness(
 	currTxId [32]byte,
 ) (witness.Witness, error) {
 
-	innerAssignment := Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G1Affine, sw_bls12377.GT]{}
+	innerAssignment := Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}
 
 	//assign the current Txn data
 	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
@@ -207,7 +208,7 @@ func createFullWitness(
 func setupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
 
 	baseCcs, err := frontend.Compile(innerField, scs.NewBuilder,
-		&Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G1Affine, sw_bls12377.GT]{})
+		&Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -229,7 +230,7 @@ func setupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_plo
 func setupCircuitParams(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
 
 	innerCcs, err := frontend.Compile(innerField, scs.NewBuilder,
-		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G1Affine, sw_bls12377.GT]{})
+		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -246,4 +247,59 @@ func setupCircuitParams(innerField *big.Int) (constraint.ConstraintSystem, nativ
 		return nil, nil, nil, err
 	}
 	return innerCcs, innerPK, innerVK, nil
+}
+
+func TestSuccintRecurse(t *testing.T) {
+
+	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
+	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
+
+	//innerCcs, innerVK, innerWitness, innerProof :=
+	assert := test.NewAssert(t)
+	innerCcs, innerVK, _, innerWitness, innerProof := createBaseCaseProof()
+
+	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
+	if err != nil {
+		panic(err)
+	}
+	circuitWitness, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
+	if err != nil {
+		panic(err)
+	}
+	circuitProof, err := plonk.ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
+	if err != nil {
+		panic(err)
+	}
+
+	outerCircuit := &Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		PreviousProof:   plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		PreviousVk:      circuitVk,
+		PreviousWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
+	}
+	outerAssignment := &Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		PreviousWitness: circuitWitness,
+		PreviousProof:   circuitProof,
+	}
+
+	prefixBytes, _ := hex.DecodeString("0200000001")
+	prevTxnIdBytes, _ := hex.DecodeString("faf3013aab53ae122e6cfdef7720c7a785fed4ce7f8f3dd19379f31e62651c71")
+	postFixBytes, _ := hex.DecodeString("000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
+
+	fullTxBytes, _ := hex.DecodeString("0200000001faf3013aab53ae122e6cfdef7720c7a785fed4ce7f8f3dd19379f31e62651c71000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	currTxId := sha256.Sum256(firstHash[:])
+
+	copy(outerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
+	copy(outerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
+	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(outerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+
+	tokenId := [32]byte{}
+	copy(tokenId[:], prevTxnIdBytes)
+	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
+
+	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+	assert.NoError(err)
+
 }
