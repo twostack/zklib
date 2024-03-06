@@ -37,33 +37,60 @@ func SetupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_plo
 	return baseCcs, innerPK, innerVK, nil
 }
 
-func createBaseCaseProof(fullTxBytes []byte, prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte) (
-	constraint.ConstraintSystem,
-	native_plonk.VerifyingKey,
-	native_plonk.ProvingKey,
+func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem, parentVk plonk.VerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine]) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
+
+	innerCcs, err := frontend.Compile(outerField, scs.NewBuilder,
+		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+			PreviousProof:   plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](parentCcs),
+			PreviousVk:      parentVk,
+			PreviousWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](parentCcs),
+		})
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return innerCcs, innerPK, innerVK, nil
+}
+
+func CreateBaseCaseProof(fullTxBytes []byte, prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte, innerCcs constraint.ConstraintSystem, provingKey native_plonk.ProvingKey) (
 	witness.Witness,
 	native_plonk.Proof,
+	error,
 ) {
 
 	innerField := ecc.BLS12_377.ScalarField()
 	outerField := ecc.BW6_761.ScalarField()
 
-	innerCcs, provingKey, verifyingKey, err := SetupBaseCase(innerField)
-	if err != nil {
-		panic(err)
-	}
+	//innerCcs, provingKey, verifyingKey, err := SetupBaseCase(innerField)
+	//if err != nil {
+	//	panic(err)
+	//}
 
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := createBaseCaseWitness(prefixBytes, postfixBytes, prevTxnIdBytes, genesisTxId)
+	genesisWitness, err := CreateBaseCaseWitness(prefixBytes, postfixBytes, prevTxnIdBytes, genesisTxId)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	proof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
 
-	return innerCcs, verifyingKey, provingKey, genesisWitness, proof
+	return genesisWitness, proof, err
 }
 
-func createBaseCaseWitness(
+func CreateBaseCaseWitness(
 	prefixBytes []byte,
 	postFixBytes []byte,
 	prevTxnIdBytes []byte,
@@ -86,7 +113,7 @@ func createBaseCaseWitness(
 	return innerWitness, nil
 }
 
-func createOuterAssignment(
+func CreateOuterAssignment(
 	circuitWitness plonk.Witness[sw_bls12377.ScalarField],
 	circuitProof plonk.Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine],
 	verifyingKey plonk.VerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine],

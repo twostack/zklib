@@ -5,16 +5,10 @@ import (
 	"encoding/hex"
 	"github.com/consensys/gnark-crypto/ecc"
 	native_plonk "github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/recursion/plonk"
 	"github.com/consensys/gnark/test"
-	"github.com/consensys/gnark/test/unsafekzg"
-	"math/big"
 	"testing"
 )
 
@@ -54,7 +48,7 @@ func TestBaseCase(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestInitialRecursion(t *testing.T) {
+func TestNormalCase(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
@@ -105,66 +99,7 @@ func TestInitialRecursion(t *testing.T) {
 	//issuanceProof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
 }
 
-func createFullWitness(
-	circuitWitness plonk.Witness[sw_bls12377.ScalarField],
-	circuitProof plonk.Proof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine],
-	circuitVk plonk.VerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine],
-	prefixBytes []byte,
-	postFixBytes []byte,
-	prevTxnIdBytes []byte,
-	currTxId [32]byte,
-	tokenId [32]byte,
-	outerField *big.Int) (witness.Witness, error) {
-
-	outerAssignment := Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		PreviousWitness: circuitWitness,
-		PreviousProof:   circuitProof,
-		PreviousVk:      circuitVk,
-	}
-
-	//assign the previous proof data
-
-	//assign the current Txn data
-	copy(outerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
-	copy(outerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
-	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
-	copy(outerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
-
-	innerWitness, err := frontend.NewWitness(&outerAssignment, outerField)
-	if err != nil {
-		return nil, err
-	}
-	return innerWitness, nil
-}
-
-func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem, parentVk plonk.VerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine]) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
-
-	innerCcs, err := frontend.Compile(outerField, scs.NewBuilder,
-		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-			PreviousProof:   plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](parentCcs),
-			PreviousVk:      parentVk,
-			PreviousWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](parentCcs),
-		})
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return innerCcs, innerPK, innerVK, nil
-}
-
-func TestSuccintRecurse(t *testing.T) {
+func TestNormalCaseSuccint(t *testing.T) {
 
 	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
 	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
