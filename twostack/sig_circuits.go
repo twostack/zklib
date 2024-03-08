@@ -1,6 +1,7 @@
 package twostack
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/math/emulated"
@@ -67,6 +68,25 @@ type SigCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G
 }
 
 func (circuit *SigCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+
+	/**
+	Following section of code is copied from the nonnative_doc_test.go example
+	*/
+	verifier, err := stdplonk.NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return fmt.Errorf("new verifier: %w", err)
+	}
+
+	/*
+	  It would be sufficient to assert that the value of
+	  circuit.PreviousWitness.Public must == circuit.PrevTxId
+	*/
+
+	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdplonk.WithCompleteArithmetic())
+
+	if err != nil {
+		return err
+	}
 
 	//assert that TokenId == Witness.tokenId
 	//field, err := emulated.NewField[FR](api)
