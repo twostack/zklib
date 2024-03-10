@@ -16,10 +16,11 @@ type SigCircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
 
 	//public params
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId  [32]uints.U8 `gnark:",public"`
-	TokenId   [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-	Signature [72]uints.U8 `gnark:",public"`
-	PublicKey [64]uints.U8 `gnark:",public"`
+	CurrTxId         [32]uints.U8 `gnark:",public"`
+	TokenId          [32]uints.U8 `gnark:",public"`
+	Signature        [72]uints.U8 `gnark:",public"`
+	PublicKey        [64]uints.U8 `gnark:",public"`
+	ScriptPubKeyHash [64]uints.U8 `gnark:",public"` //MiMC hash of the scriptPubkey. Preserve between IVC rounds.
 }
 
 func (circuit *SigCircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
@@ -30,6 +31,8 @@ func (circuit *SigCircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.API
 	}
 
 	//parse TxPreImage to obtain PrevTxId
+
+	//parse the TxPreImage to obtain the scriptPubKey
 
 	//create ECDSA Signature that pins committed CurrTxId
 	//to the issuance Txn's prevTxId(outpoint)
@@ -60,11 +63,12 @@ type SigCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G
 
 	//public params
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId        [32]uints.U8         `gnark:",public"`
-	TokenId         [32]uints.U8         `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-	Signature       [72]uints.U8         `gnark:",public"`
-	PublicKey       [64]uints.U8         `gnark:",public"`
-	PreviousWitness stdplonk.Witness[FR] `gnark:",public"`
+	CurrTxId         [32]uints.U8         `gnark:",public"`
+	TokenId          [32]uints.U8         `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	Signature        [72]uints.U8         `gnark:",public"`
+	PublicKey        [64]uints.U8         `gnark:",public"`
+	ScriptPubKeyHash [64]uints.U8         `gnark:",public"` //MiMC hash of the scriptPubkey. Preserve between IVC rounds.
+	PreviousWitness  stdplonk.Witness[FR] `gnark:",public"`
 }
 
 func (circuit *SigCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
@@ -101,6 +105,19 @@ func (circuit *SigCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error 
 	//1. PrevTxId
 	//2. Signature from Input
 	//3. Public Key from Input
+
+	//parse TxPreImage to obtain PrevTxId
+
+	//parse the TxPreImage to obtain the scriptPubKey
+	//now check that current scriptPubkey is same as previous scriptPubKey
+	//Verify that MiMC(scriptPubKey) == PreviousWitness.ScriptPubKeyHash
+
+	//create ECDSA Signature that pins committed CurrTxId
+	//to the issuance Txn's prevTxId(outpoint)
+	//Sig(PrevTxId||CurrTxId)
+
+	//verify Signature commitment
+	//public Signature  == in-circuit Signature
 
 	return nil
 }

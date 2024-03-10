@@ -119,6 +119,9 @@ func TestNormalCaseSuccint(t *testing.T) {
 	assert := test.NewAssert(t)
 	baseCcs, basePk, baseVk, err := SetupBaseCase(innerField)
 	innerWitness, innerProof, err := CreateBaseCaseProof(fullTxGenesisBytes, prefixGenesisBytes, prevTxnIdGenesisBytes, postFixGenesisBytes, baseCcs, basePk)
+	if err != nil {
+		panic(err)
+	}
 
 	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](baseVk)
 	if err != nil {

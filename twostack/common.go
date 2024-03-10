@@ -63,7 +63,7 @@ func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem,
 	return innerCcs, innerPK, innerVK, nil
 }
 
-func CreateBaseCaseProof(fullTxBytes []byte, prevTxnIdBytes [32]byte, innerCcs constraint.ConstraintSystem, provingKey native_plonk.ProvingKey) (
+func CreateBaseCaseProof(fullTxBytes []byte, txnIdBytes [32]byte, innerCcs constraint.ConstraintSystem, provingKey native_plonk.ProvingKey) (
 	witness.Witness,
 	native_plonk.Proof,
 	error,
@@ -72,7 +72,7 @@ func CreateBaseCaseProof(fullTxBytes []byte, prevTxnIdBytes [32]byte, innerCcs c
 	innerField := ecc.BLS12_377.ScalarField()
 	outerField := ecc.BW6_761.ScalarField()
 
-	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, prevTxnIdBytes)
+	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, txnIdBytes)
 	if err != nil {
 		return nil, nil, err
 	}
