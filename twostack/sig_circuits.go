@@ -1,74 +1,59 @@
 package twostack
 
 import (
-	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/hash/sha2"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
-	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
+	"github.com/consensys/gnark/std/recursion/groth16"
 )
 
 type SigCircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	//private params
-	TxPreImage []uints.U8
-	PrivateKey [64]uints.U8
+	TxPreImage [128]uints.U8
 
 	//public params
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId         [32]uints.U8 `gnark:",public"`
-	TokenId          [32]uints.U8 `gnark:",public"`
-	Signature        [72]uints.U8 `gnark:",public"`
-	PublicKey        [64]uints.U8 `gnark:",public"`
-	ScriptPubKeyHash [64]uints.U8 `gnark:",public"` //MiMC hash of the scriptPubkey. Preserve between IVC rounds.
+	ImageHash [32]uints.U8 `gnark:",public"` //shahash of the scriptPubkey. Preserve between IVC rounds.
 }
 
-func (circuit *SigCircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+func (circuit *SigCircuitBaseCase[FR, G1El, G2El, GTEl]) Define(api frontend.API) error {
 
 	uapi, err := uints.New[uints.U32](api)
 	if err != nil {
 		return err
 	}
 
-	//parse TxPreImage to obtain PrevTxId
+	//instantiate a sha256 circuit
+	sha256, err := sha2.New(api)
 
-	//parse the TxPreImage to obtain the scriptPubKey
+	if err != nil {
+		return err
+	}
 
-	//create ECDSA Signature that pins committed CurrTxId
-	//to the issuance Txn's prevTxId(outpoint)
-	//Sig(PrevTxId||CurrTxId)
+	//write the preimage into the circuit
+	sha256.Write(circuit.TxPreImage[:])
 
-	//verify Signature commitment
-	//public Signature  == in-circuit Signature
-
-	//for i := range circuit.CurrTxId {
-	//	uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
-	//}
+	//use the circuit directly to calculate the double-sha256 hash
+	res := sha256.Sum()
 
 	//assert that currTxId == TokenId
-	for i := range circuit.CurrTxId {
-		uapi.ByteAssertEq(circuit.TokenId[i], circuit.CurrTxId[i])
+	for i := range circuit.ImageHash {
+		uapi.ByteAssertEq(circuit.ImageHash[i], res[i])
 	}
 
 	return nil
 }
 
 type SigCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	PreviousProof stdplonk.Proof[FR, G1El, G2El]
-	PreviousVk    stdplonk.VerifyingKey[FR, G1El, G2El] `gnark:"-"` // constant verification key
+	PreviousProof   groth16.Proof[G1El, G2El]
+	PreviousVk      groth16.VerifyingKey[G1El, G2El, GtEl] `gnark:"-"` // constant verification key
+	PreviousWitness groth16.Witness[FR]
 
 	//private params
-	TxPreImage []uints.U8
-	PrivateKey [64]uints.U8
-
-	//public params
-	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId         [32]uints.U8         `gnark:",public"`
-	TokenId          [32]uints.U8         `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-	Signature        [72]uints.U8         `gnark:",public"`
-	PublicKey        [64]uints.U8         `gnark:",public"`
-	ScriptPubKeyHash [64]uints.U8         `gnark:",public"` //MiMC hash of the scriptPubkey. Preserve between IVC rounds.
-	PreviousWitness  stdplonk.Witness[FR] `gnark:",public"`
+	TxPreImage [128]uints.U8
+	ImageHash  [32]uints.U8 `gnark:",public"` //public input for proof verification
 }
 
 func (circuit *SigCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
@@ -76,48 +61,41 @@ func (circuit *SigCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error 
 	/**
 	Following section of code is copied from the nonnative_doc_test.go example
 	*/
-	verifier, err := stdplonk.NewVerifier[FR, G1El, G2El, GtEl](api)
-	if err != nil {
-		return fmt.Errorf("new verifier: %w", err)
-	}
+	verifier, err := groth16.NewVerifier[FR, G1El, G2El, GtEl](api)
+	verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness)
+	//if err != nil {
+	//	return fmt.Errorf("new verifier: %w", err)
+	//}
 
 	/*
 	  It would be sufficient to assert that the value of
 	  circuit.PreviousWitness.Public must == circuit.PrevTxId
 	*/
 
-	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdplonk.WithCompleteArithmetic())
+	//publicInputs := []frontend.Variable{circuit.ImageHash}
+
+	uapi, err := uints.New[uints.U32](api)
+	if err != nil {
+		return err
+	}
+
+	//instantiate a sha256 circuit
+	sha256, err := sha2.New(api)
 
 	if err != nil {
 		return err
 	}
 
-	//assert that TokenId == Witness.tokenId
-	//field, err := emulated.NewField[FR](api)
-	//tokenOffset := 32 //FIXME: Figure out the proper tokenId offset in public variables
-	//for i := range circuit.TokenId {
-	//	witnessTokenIdBits := field.ToBits(&circuit.PreviousWitness.Public[i+tokenOffset])
-	//	witnessTokenId := bits.FromBinary(api, witnessTokenIdBits)
-	//	uapi.ByteAssertEq(circuit.TokenId[i], uapi.ByteValueOf(witnessTokenId))
-	//}
+	//write the preimage into the circuit
+	sha256.Write(circuit.TxPreImage[:])
 
-	//parse TxPreImage to obtain
-	//1. PrevTxId
-	//2. Signature from Input
-	//3. Public Key from Input
+	//use the circuit directly to calculate the double-sha256 hash
+	res := sha256.Sum()
 
-	//parse TxPreImage to obtain PrevTxId
-
-	//parse the TxPreImage to obtain the scriptPubKey
-	//now check that current scriptPubkey is same as previous scriptPubKey
-	//Verify that MiMC(scriptPubKey) == PreviousWitness.ScriptPubKeyHash
-
-	//create ECDSA Signature that pins committed CurrTxId
-	//to the issuance Txn's prevTxId(outpoint)
-	//Sig(PrevTxId||CurrTxId)
-
-	//verify Signature commitment
-	//public Signature  == in-circuit Signature
+	//assert that currTxId == TokenId
+	for i := range circuit.ImageHash {
+		uapi.ByteAssertEq(circuit.ImageHash[i], res[i])
+	}
 
 	return nil
 }

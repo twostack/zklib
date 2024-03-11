@@ -2,12 +2,12 @@ package twostack
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
-	"github.com/consensys/gnark/std/recursion/plonk"
+	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
 	"testing"
+	"time"
 )
 
 /*
@@ -22,44 +22,98 @@ spendingTx : 0200000002926f8320f48b625c215a1ed579ea7f9f54bc1e78c487d51950677478c
 func TestBaseCase(t *testing.T) {
 
 	assert := test.NewAssert(t)
-	innerField := ecc.BLS12_377.ScalarField()
+	innerField := ecc.BLS24_315.ScalarField()
+	outerField := ecc.BW6_633.ScalarField()
 
-	baseCcs, basePk, baseVk, err := SetupBaseCase(innerField)
-	if err != nil {
-		panic(err)
-	}
+	start := time.Now()
+	baseCcs, basePk, _, err := SetupBaseCase(innerField)
+	end := time.Since(start)
+	fmt.Printf("Setup took : %s\n", end)
+	//if err != nil {
+	//	panic(err)
+	//}
 
-	fullTxBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
+	fullTxBytes := []byte("123A0556BADB4F4E93A4772EB20C56E1123A0556BADB4F4E93A4772EB20C56E1123A0556BADB4F4E93A4772EB20C56E1123A0556BADB4F4E93A4772EB20C56E1")
 
 	firstHash := sha256.Sum256(fullTxBytes)
-	txId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, genesisProof, err := CreateBaseCaseProof(fullTxBytes, txId, baseCcs, basePk)
+	start = time.Now()
+	CreateBaseCaseProof(outerField, innerField, fullTxBytes, firstHash, baseCcs, basePk)
+	end = time.Since(start)
+	fmt.Printf("Base Case Proof took : %s\n", end)
 
-	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](baseVk)
-	if err != nil {
-		panic(err)
-	}
-	circuitWitness, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](genesisWitness)
-	if err != nil {
-		panic(err)
-	}
-	circuitProof, err := plonk.ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](genesisProof)
-	if err != nil {
-		panic(err)
-	}
-
-	outerCircuit := &SigCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		PreviousProof:   plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](baseCcs),
-		PreviousVk:      circuitVk,
-		PreviousWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](baseCcs),
-	}
+	fullWitness := &SigCircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{}
+	copy(fullWitness.TxPreImage[:], uints.NewU8Array(fullTxBytes[:]))
+	copy(fullWitness.ImageHash[:], uints.NewU8Array(firstHash[:]))
 
 	//spending transaction
+	testWitness := &SigCircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{}
+	copy(fullWitness.ImageHash[:], uints.NewU8Array(firstHash[:]))
 
-	outerAssignment := CreateOuterAssignment(circuitWitness, circuitProof, circuitVk, fullTxBytes, txId)
-
-	err = test.IsSolved(outerCircuit, &outerAssignment, ecc.BW6_761.ScalarField())
+	err = test.IsSolved(testWitness, fullWitness, outerField)
 	assert.NoError(err)
 
 }
+
+/*
+func TestNormalCase(t *testing.T) {
+
+	assert := test.NewAssert(t)
+	innerField := ecc.BLS24_315.ScalarField()
+	outerField := ecc.BW6_633.ScalarField()
+
+	start := time.Now()
+	baseCcs, basePk, baseVk, err := SetupBaseCase(innerField)
+	end := time.Since(start)
+	fmt.Printf("Setup took : %s\n", end)
+	//if err != nil {
+	//	panic(err)
+	//}
+
+	fullTxBytes := []byte("123A0556BADB4F4E93A4772EB20C56E1123A0556BADB4F4E93A4772EB20C56E1123A0556BADB4F4E93A4772EB20C56E1123A0556BADB4F4E93A4772EB20C56E1")
+
+	firstHash := sha256.Sum256(fullTxBytes)
+
+	start = time.Now()
+	genesisWitness, genesisProof, err := CreateBaseCaseProof(outerField, innerField, fullTxBytes, firstHash, baseCcs, basePk)
+	end = time.Since(start)
+	fmt.Printf("Base Case Proof took : %s\n", end)
+
+	innerWitness, err := groth16.ValueOfWitness[ScalarField](genesisWitness)
+	innerProof, err := groth16.ValueOfProof[ScalarField, G1Affine, G2Affine](genesisProof)
+	innerVk, err := groth16.ValueOfVerifyingKey[ScalarField, G1Affine, G2Affine](baseVk)
+
+	outerAssignment := &SigCircuit[ScalarField, G1Affine, G2Affine, GTEl]{
+		PreviousProof:   innerProof,
+		PreviousVk:      innerVk,
+		PreviousWitness: innerWitness,
+	}
+	copy(outerAssignment.TxPreImage[:], uints.NewU8Array(fullTxBytes[:]))
+	copy(outerAssignment.ImageHash[:], uints.NewU8Array(firstHash[:]))
+
+	start = time.Now()
+	normalCcs, outerPk, outerVk, err := SetupNormalCase(outerField, baseCcs, innerVk) //??baseCcs ?
+	assert.NoError(err)
+	end = time.Since(start)
+	fmt.Printf("Normal Case Setup took : %s\n", end)
+
+	outerWitness, err := frontend.NewWitness(outerAssignment, outerField)
+
+	start = time.Now()
+	outerProof, err := native_plonk.Prove(normalCcs, outerPk, outerWitness, plonk.GetNativeProverOptions(outerField, innerField))
+	end = time.Since(start)
+	fmt.Printf("Prover took : %s\n", end)
+	assert.NoError(err)
+
+	publicWitness, err := outerWitness.Public()
+	err = native_plonk.Verify(outerProof, outerVk, publicWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
+	assert.NoError(err)
+	//testWitness := &SigCircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{}
+	//copy(outerAssignment.ImageHash[:], uints.NewU8Array(firstHash[:]))
+
+	//err = test.IsSolved(testWitness, fullWitness, outerField)
+	//assert.NoError(err)
+
+}
+
+*/
