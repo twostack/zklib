@@ -3,12 +3,14 @@ package txivc
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	"github.com/consensys/gnark/test"
 	"testing"
+	"time"
 )
 
 func TestBaseCase(t *testing.T) {
@@ -64,8 +66,15 @@ func TestNormalCase(t *testing.T) {
 	prevTxnIdBytes, _ := hex.DecodeString("90bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7")
 	postFixBytes, _ := hex.DecodeString("000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 
+	start := time.Now()
 	baseCcs, basePk, baseVk, err := SetupBaseCase(innerField)
+	end := time.Since(start)
+	fmt.Printf("Setup Base Case took : %s\n", end)
+
+	start = time.Now()
 	genesisWitness, genesisProof, err := CreateBaseCaseProof(outerField, innerField, fullTxBytes, prefixBytes, prevTxnIdBytes, postFixBytes, baseCcs, basePk)
+	end = time.Since(start)
+	fmt.Printf("Base Case Prof took : %s\n", end)
 
 	//can create a lightweight witness here for verification
 	//err := native_plonk.Verify(genesisProof, verifyingKey, genesisWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
@@ -85,17 +94,27 @@ func TestNormalCase(t *testing.T) {
 	outerAssignment := CreateOuterAssignment(innerWitness, innerProof, innerVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
 	outerWitness, err := frontend.NewWitness(&outerAssignment, outerField)
 
+	start = time.Now()
 	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(outerField, baseCcs, innerVk)
-
+	end = time.Since(start)
+	fmt.Printf("Normal case setup took : %s\n", end)
 	assert.NoError(err)
+
+	start = time.Now()
 	outerProof, err := native_groth16.Prove(outerCcs, outerProvingKey, outerWitness, groth16.GetNativeProverOptions(outerField, innerField))
+	end = time.Since(start)
+	fmt.Printf("Normal case Proof took : %s\n", end)
 
 	//verify the normal proof
 	assert.NoError(err)
+	start = time.Now()
 	publicWitness, err := outerWitness.Public()
 	assert.NoError(err)
 	err = native_groth16.Verify(outerProof, outerVerifyingKey, publicWitness, groth16.GetNativeVerifierOptions(outerField, innerField))
 	assert.NoError(err)
+
+	end = time.Since(start)
+	fmt.Printf("Normal case verification took : %s\n", end)
 
 	//Let's do the first issuance , proof, vk
 	//gw, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](genesisWitness)
