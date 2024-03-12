@@ -17,6 +17,7 @@ import (
 	"github.com/consensys/gnark/test/unsafekzg"
 	"math/big"
 	"testing"
+	plonk2 "zklib/twostack/plonk"
 )
 
 func TestInnerProofCircuitPlonk(t *testing.T) {
@@ -35,14 +36,14 @@ func TestInnerProofCircuitPlonk(t *testing.T) {
 	fmt.Println(hex.EncodeToString(currTxId[:]))
 
 	//full witness
-	witness := Sha256InnerCircuit{}
+	witness := plonk2.Sha256InnerCircuit{}
 	copy(witness.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(witness.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(witness.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(witness.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
 	// inner circuit pre-image values only
-	testCircuit := Sha256InnerCircuit{}
+	testCircuit := plonk2.Sha256InnerCircuit{}
 	copy(testCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(testCircuit.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(testCircuit.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
@@ -57,13 +58,13 @@ func TestInnerProofCircuitPlonk(t *testing.T) {
 	//test the prover
 	assert := test.NewAssert(t)
 
-	proverCircuit := Sha256InnerCircuit{}
+	proverCircuit := plonk2.Sha256InnerCircuit{}
 	copy(proverCircuit.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	copy(proverCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(proverCircuit.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(proverCircuit.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 
-	assert.ProverSucceeded(&Sha256InnerCircuit{}, &proverCircuit, test.WithCurves(ecc.BLS12_377))
+	assert.ProverSucceeded(&plonk2.Sha256InnerCircuit{}, &proverCircuit, test.WithCurves(ecc.BLS12_377))
 
 }
 
@@ -103,12 +104,12 @@ func TestOuterProofAndVerifyPlonkSuccinct(t *testing.T) {
 		panic(err)
 	}
 
-	outerCircuit := &Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerCircuit := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		Proof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
 		VerifyingKey: circuitVk,
 	}
-	outerAssignment := &Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerAssignment := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 	}
@@ -141,14 +142,14 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 	}
 
 	prevTxnIdBytes, _ := hex.DecodeString("193a78f8a6883ae82d7e9f146934af4d6edc2f0f5a16d0b931bdfaa9a0d22eac")
-	outerCircuit := &Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerCircuit := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		Proof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
 		VerifyingKey: circuitVk,
 	}
 	copy(outerCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 
-	outerAssignment := &Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerAssignment := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
 		Proof:        circuitProof,
 	}
@@ -204,7 +205,7 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constraint.ConstraintSystem, native_plonk.VerifyingKey, witness.Witness, native_plonk.Proof) {
 	//func computeInnerProofPlonk(field *big.Int) (constraint.ConstraintSystem, plonk.PreviousVk, witness.Witness, plonk.PreviousProof) {
 	//innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &Sha256InnerCircuit{})
-	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &Sha256InnerCircuit{})
+	innerCcs, err := frontend.Compile(field, scs.NewBuilder, &plonk2.Sha256InnerCircuit{})
 
 	if err != nil {
 		panic(err)
@@ -232,7 +233,7 @@ func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constra
 
 	fmt.Println(hex.EncodeToString(currTxId[:]))
 	// inner proof
-	innerAssignment := &Sha256InnerCircuit{}
+	innerAssignment := &plonk2.Sha256InnerCircuit{}
 
 	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))

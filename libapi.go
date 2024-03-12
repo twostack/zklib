@@ -14,7 +14,7 @@ import (
 	"log"
 	"os"
 	"time"
-	"zklib/recurse"
+	plonk2 "zklib/twostack/plonk"
 )
 
 /*
@@ -30,7 +30,7 @@ type ProofObj struct {
 
 func CompileInnerCiruit() (constraint.ConstraintSystem, error) {
 	innerField := ecc.BLS12_377.ScalarField()
-	innerCcs, err := frontend.Compile(innerField, scs.NewBuilder, &recurse.Sha256InnerCircuit{})
+	innerCcs, err := frontend.Compile(innerField, scs.NewBuilder, &plonk2.Sha256InnerCircuit{})
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func SetupCircuit(innerCcs constraint.ConstraintSystem) (native_plonk.VerifyingK
 func CreateInnerWitness(prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte, currTxId []byte) (witness.Witness, error) {
 	innerField := ecc.BLS12_377.ScalarField()
 
-	innerAssignment := &recurse.Sha256InnerCircuit{}
+	innerAssignment := &plonk2.Sha256InnerCircuit{}
 
 	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postfixBytes))

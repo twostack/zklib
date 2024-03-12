@@ -2,6 +2,7 @@ package txivc
 
 import (
 	"crypto/sha256"
+	"github.com/consensys/gnark/backend"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
@@ -74,23 +75,11 @@ func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem,
 	return innerCcs, innerPK, innerVK, nil
 }
 
-func CreateBaseCaseProof(outerField, innerField *big.Int, fullTxBytes []byte, prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte, innerCcs constraint.ConstraintSystem, provingKey native_groth16.ProvingKey) (
-	witness.Witness,
+func CreateBaseCaseProof(proverOptions backend.ProverOption, innerCcs constraint.ConstraintSystem, genesisWitness witness.Witness, provingKey native_groth16.ProvingKey) (
 	native_groth16.Proof,
 	error,
 ) {
-
-	firstHash := sha256.Sum256(fullTxBytes)
-	genesisTxId := sha256.Sum256(firstHash[:])
-
-	genesisWitness, err := CreateBaseCaseWitness(prefixBytes, postfixBytes, prevTxnIdBytes, genesisTxId, innerField)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	proof, err := native_groth16.Prove(innerCcs, provingKey, genesisWitness, groth16.GetNativeProverOptions(outerField, innerField))
-
-	return genesisWitness, proof, err
+	return native_groth16.Prove(innerCcs, provingKey, genesisWitness, proverOptions)
 }
 
 func CreateBaseCaseWitness(

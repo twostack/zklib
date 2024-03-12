@@ -1,4 +1,4 @@
-package twostack
+package experimental
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"

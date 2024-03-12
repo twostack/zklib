@@ -1,4 +1,4 @@
-package twostack
+package experimental
 
 import (
 	"crypto/sha256"

@@ -31,14 +31,14 @@ func TestInnerProofCircuit(t *testing.T) {
 	fmt.Println(hex.EncodeToString(currTxId[:]))
 
 	//full witness
-	witness := Sha256InnerCircuit{}
+	witness := plonk.Sha256InnerCircuit{}
 	copy(witness.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(witness.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(witness.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(witness.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
 	// inner circuit pre-image values only
-	testCircuit := Sha256InnerCircuit{}
+	testCircuit := plonk.Sha256InnerCircuit{}
 	copy(testCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(testCircuit.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(testCircuit.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
@@ -53,13 +53,13 @@ func TestInnerProofCircuit(t *testing.T) {
 	//test the prover
 	assert := test.NewAssert(t)
 
-	proverCircuit := Sha256InnerCircuit{}
+	proverCircuit := plonk.Sha256InnerCircuit{}
 	copy(proverCircuit.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	copy(proverCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(proverCircuit.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(proverCircuit.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 
-	assert.ProverSucceeded(&Sha256InnerCircuit{}, &proverCircuit, test.WithCurves(ecc.BLS12_377))
+	assert.ProverSucceeded(&plonk.Sha256InnerCircuit{}, &proverCircuit, test.WithCurves(ecc.BLS12_377))
 
 }
 
@@ -80,7 +80,7 @@ func TestOuterProofAndVerify(t *testing.T) {
 // recursively. In this example the Groth16 keys are generated on the fly, but
 // in practice should be generated once and using MPC.
 func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
-	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &Sha256InnerCircuit{})
+	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &plonk.Sha256InnerCircuit{})
 	if err != nil {
 		panic(err)
 	}
@@ -100,7 +100,7 @@ func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.Ver
 	currTxId := sha256.Sum256(firstHash[:])
 
 	// inner proof
-	innerAssignment := &Sha256InnerCircuit{}
+	innerAssignment := &plonk.Sha256InnerCircuit{}
 
 	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
