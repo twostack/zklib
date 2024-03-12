@@ -7,7 +7,6 @@ import (
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/recursion/groth16"
-	"github.com/consensys/gnark/std/recursion/plonk"
 	"github.com/consensys/gnark/test"
 	"testing"
 )
@@ -16,8 +15,11 @@ func TestBaseCase(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BLS12_377.ScalarField()
+	innerField := ecc.BLS24_315.ScalarField()
+	outerField := ecc.BW6_633.ScalarField()
+
+	//innerField := ecc.BLS12_377.ScalarField()
+	//outerField := ecc.BLS12_377.ScalarField()
 
 	innerCcs, provingKey, verifyingKey, err := SetupBaseCase(innerField)
 	if err != nil {
@@ -38,7 +40,7 @@ func TestBaseCase(t *testing.T) {
 	genesisWitness, err := CreateBaseCaseWitness(prefixBytes, postFixBytes, prevTxnIdBytes, genesisTxId, innerField)
 
 	assert.NoError(err)
-	genesisProof, err := native_groth16.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
+	genesisProof, err := native_groth16.Prove(innerCcs, provingKey, genesisWitness, groth16.GetNativeProverOptions(outerField, innerField))
 
 	//verify the genesis proof
 	assert.NoError(err)
@@ -52,9 +54,10 @@ func TestNormalCase(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	innerField := ecc.BLS12_377.ScalarField()
-	//outerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
+	innerField := ecc.BLS24_315.ScalarField()
+	outerField := ecc.BW6_633.ScalarField()
+	//innerField := ecc.BLS12_377.ScalarField()
+	//outerField := ecc.BW6_761.ScalarField()
 
 	fullTxBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 	prefixBytes, _ := hex.DecodeString("0200000001")
@@ -85,13 +88,13 @@ func TestNormalCase(t *testing.T) {
 	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(outerField, baseCcs, innerVk)
 
 	assert.NoError(err)
-	outerProof, err := native_groth16.Prove(outerCcs, outerProvingKey, outerWitness, plonk.GetNativeProverOptions(outerField, innerField))
+	outerProof, err := native_groth16.Prove(outerCcs, outerProvingKey, outerWitness, groth16.GetNativeProverOptions(outerField, innerField))
 
 	//verify the normal proof
 	assert.NoError(err)
 	publicWitness, err := outerWitness.Public()
 	assert.NoError(err)
-	err = native_groth16.Verify(outerProof, outerVerifyingKey, publicWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
+	err = native_groth16.Verify(outerProof, outerVerifyingKey, publicWitness, groth16.GetNativeVerifierOptions(outerField, innerField))
 	assert.NoError(err)
 
 	//Let's do the first issuance , proof, vk
@@ -105,9 +108,10 @@ func TestNormalCaseSuccint(t *testing.T) {
 	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
 	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
 
-	innerField := ecc.BLS12_377.ScalarField()
-	//outerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
+	innerField := ecc.BLS24_315.ScalarField()
+	outerField := ecc.BW6_633.ScalarField()
+	//innerField := ecc.BLS12_377.ScalarField()
+	//outerField := ecc.BW6_761.ScalarField()
 
 	//issuance txn
 	fullTxGenesisBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
@@ -151,7 +155,7 @@ func TestNormalCaseSuccint(t *testing.T) {
 
 	outerAssignment := CreateOuterAssignment(circuitWitness, circuitProof, circuitVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
 
-	err = test.IsSolved(outerCircuit, &outerAssignment, ecc.BW6_761.ScalarField())
+	err = test.IsSolved(outerCircuit, &outerAssignment, outerField)
 	assert.NoError(err)
 
 	//now follow-up with a first-spend and proof of the previous token

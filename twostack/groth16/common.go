@@ -7,18 +7,22 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	"math/big"
 )
 
-// type ScalarField = sw_bls24315.ScalarField
-// type G1Affine = sw_bls24315.G1Affine
-// type G2Affine = sw_bls24315.G2Affine
-// type GTEl = sw_bls24315.GT
+//type ScalarField = sw_bls12377.ScalarField
+//type G1Affine = sw_bls12377.G1Affine
+//type G2Affine = sw_bls12377.G2Affine
+//type GTEl = sw_bls12377.GT
+
+type ScalarField = sw_bls24315.ScalarField
+type G1Affine = sw_bls24315.G1Affine
+type G2Affine = sw_bls24315.G2Affine
+type GTEl = sw_bls24315.GT
+
 //type ScalarField = sw_bls12381.ScalarField
 //type G1Affine = sw_bls12381.G1Affine
 //type G2Affine = sw_bls12381.G2Affine
@@ -28,15 +32,16 @@ import (
 // type G1Affine = sw_bn254.G1Affine
 // type G2Affine = sw_bn254.G2Affine
 // type GTEl = sw_bn254.GTEl
-type ScalarField = sw_bls24315.ScalarField
-type G1Affine = sw_bls24315.G1Affine
-type G2Affine = sw_bls24315.G2Affine
-type GTEl = sw_bls24315.GT
+
+//type ScalarField = sw_bls24315.ScalarField
+//type G1Affine = sw_bls24315.G1Affine
+//type G2Affine = sw_bls24315.G2Affine
+//type GTEl = sw_bls24315.GT
 
 func SetupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
-	baseCcs, err := frontend.Compile(innerField, scs.NewBuilder,
-		&Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
+	baseCcs, err := frontend.Compile(innerField, r1cs.NewBuilder,
+		&Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{})
 
 	if err != nil {
 		return nil, nil, nil, err
