@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
@@ -200,7 +199,7 @@ func benchNormalCaseGroth16() {
 	genesisWitness, err := grothivc.CreateBaseCaseWitness(prefixBytes, postFixBytes, prevTxnIdBytes, genesisTxId, innerField)
 
 	start = time.Now()
-	genesisProof, err := grothivc.CreateBaseCaseProof(proverOptions, innerCcs, genesisWitness, provingKey)
+	genesisProof, err := grothivc.ComputeProof(innerCcs, provingKey, genesisWitness, proverOptions)
 	elapsed = time.Since(start)
 	fmt.Printf("Base case proof created: %s\n", elapsed)
 
@@ -209,10 +208,9 @@ func benchNormalCaseGroth16() {
 		return
 	}
 
-	publicWitness, err := genesisWitness.Public()
-	err = native_groth16.Verify(genesisProof, verifyingKey, publicWitness, groth16.GetNativeVerifierOptions(outerField, innerField))
-	if err != nil {
-		fmt.Printf("Fail on base case verification! %s\n", err)
+	verifierOptions := groth16.GetNativeVerifierOptions(outerField, innerField)
+	isVerified := grothivc.VerifyProof(genesisWitness, genesisProof, verifyingKey, verifierOptions)
+	if !isVerified {
 		return
 	}
 
@@ -239,25 +237,23 @@ func benchNormalCaseGroth16() {
 	outerAssignment := grothivc.CreateOuterAssignment(innerWitness, innerProof, innerVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
 	outerWitness, err := frontend.NewWitness(&outerAssignment, outerField)
 	if err != nil {
-		fmt.Printf("Fail ! %s", err)
+		fmt.Printf("Fail ! %s\n", err)
 		return
 	}
 
 	start = time.Now()
-	outerProof, err := native_groth16.Prove(outerCcs, outerProvingKey, outerWitness, proverOptions)
+	outerProof, err := grothivc.ComputeProof(outerCcs, outerProvingKey, outerWitness, proverOptions)
 	elapsed = time.Since(start)
-	fmt.Printf("Normal case proof created: %s\n", elapsed)
+	fmt.Printf("Proof compute took : %s\n", elapsed)
 	if err != nil {
-		fmt.Printf("Fail ! %s", err)
+		fmt.Printf("Proof computation failed ! %s\n", err)
 		return
 	}
 
 	//verify the normal proof
 	publicOuterWitness, err := outerWitness.Public()
-	err = native_groth16.Verify(outerProof, outerVerifyingKey, publicOuterWitness, groth16.GetNativeVerifierOptions(outerField, innerField))
-
-	if err != nil {
-		fmt.Printf("Fail ! %s", err)
+	isVerified = grothivc.VerifyProof(publicOuterWitness, outerProof, outerVerifyingKey, verifierOptions)
+	if !isVerified {
 		return
 	}
 }

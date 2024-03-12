@@ -2,6 +2,7 @@ package txivc
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"github.com/consensys/gnark/backend"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
@@ -131,4 +132,18 @@ func CreateOuterAssignment(
 	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
 
 	return outerAssignment
+}
+
+func VerifyProof(genesisWitness witness.Witness, genesisProof native_groth16.Proof, verifyingKey native_groth16.VerifyingKey, verifierOptions backend.VerifierOption) bool {
+	publicWitness, err := genesisWitness.Public()
+	err = native_groth16.Verify(genesisProof, verifyingKey, publicWitness, verifierOptions)
+	if err != nil {
+		fmt.Printf("Fail on base case verification! %s\n", err)
+		return false
+	}
+	return true
+}
+
+func ComputeProof(outerCcs constraint.ConstraintSystem, outerProvingKey native_groth16.ProvingKey, outerWitness witness.Witness, proverOptions backend.ProverOption) (native_groth16.Proof, error) {
+	return native_groth16.Prove(outerCcs, outerProvingKey, outerWitness, proverOptions)
 }
