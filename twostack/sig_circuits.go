@@ -46,6 +46,7 @@ func (circuit *SigCircuitBaseCase[FR, G1El, G2El, GTEl]) Define(api frontend.API
 	return nil
 }
 
+// [FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT]
 type SigCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	PreviousProof   groth16.Proof[G1El, G2El]
 	PreviousVk      groth16.VerifyingKey[G1El, G2El, GtEl] `gnark:"-"` // constant verification key

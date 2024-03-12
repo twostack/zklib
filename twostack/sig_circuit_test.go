@@ -4,7 +4,11 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	native_groth16 "github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
+	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
+	"github.com/consensys/gnark/std/recursion/plonk"
 	"github.com/consensys/gnark/test"
 	"testing"
 	"time"
@@ -55,7 +59,6 @@ func TestBaseCase(t *testing.T) {
 
 }
 
-/*
 func TestNormalCase(t *testing.T) {
 
 	assert := test.NewAssert(t)
@@ -79,9 +82,9 @@ func TestNormalCase(t *testing.T) {
 	end = time.Since(start)
 	fmt.Printf("Base Case Proof took : %s\n", end)
 
-	innerWitness, err := groth16.ValueOfWitness[ScalarField](genesisWitness)
-	innerProof, err := groth16.ValueOfProof[ScalarField, G1Affine, G2Affine](genesisProof)
-	innerVk, err := groth16.ValueOfVerifyingKey[ScalarField, G1Affine, G2Affine](baseVk)
+	innerWitness, err := stdgroth16.ValueOfWitness[ScalarField](genesisWitness)
+	innerProof, err := stdgroth16.ValueOfProof[G1Affine, G2Affine](genesisProof)
+	innerVk, err := stdgroth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](baseVk)
 
 	outerAssignment := &SigCircuit[ScalarField, G1Affine, G2Affine, GTEl]{
 		PreviousProof:   innerProof,
@@ -100,13 +103,17 @@ func TestNormalCase(t *testing.T) {
 	outerWitness, err := frontend.NewWitness(outerAssignment, outerField)
 
 	start = time.Now()
-	outerProof, err := native_plonk.Prove(normalCcs, outerPk, outerWitness, plonk.GetNativeProverOptions(outerField, innerField))
+	outerProof, err := native_groth16.Prove(normalCcs, outerPk, outerWitness, plonk.GetNativeProverOptions(outerField, innerField))
 	end = time.Since(start)
 	fmt.Printf("Prover took : %s\n", end)
 	assert.NoError(err)
 
+	start = time.Now()
+
 	publicWitness, err := outerWitness.Public()
-	err = native_plonk.Verify(outerProof, outerVk, publicWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
+	err = native_groth16.Verify(outerProof, outerVk, publicWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
+	assert.NoError(err)
+	fmt.Printf("Verifier took : %s\n", end)
 	assert.NoError(err)
 	//testWitness := &SigCircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{}
 	//copy(outerAssignment.ImageHash[:], uints.NewU8Array(firstHash[:]))
@@ -115,5 +122,3 @@ func TestNormalCase(t *testing.T) {
 	//assert.NoError(err)
 
 }
-
-*/

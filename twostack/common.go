@@ -56,12 +56,13 @@ func SetupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_gro
 func SetupNormalCase(
 	outerField *big.Int,
 	parentCcs constraint.ConstraintSystem,
-	parentVk groth16.VerifyingKey[ScalarField, G1Affine, G2Affine]) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+	parentVk groth16.VerifyingKey[G1Affine, G2Affine, GTEl]) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	innerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
 		&SigCircuit[ScalarField, G1Affine, G2Affine, GTEl]{
-			//PreviousProof:   groth16.PlaceholderProof[ScalarField, G1Affine, G2Affine](parentCcs),
-			//PreviousVk:      parentVk,
+			PreviousProof:   groth16.PlaceholderProof[G1Affine, G2Affine](parentCcs),
+			PreviousVk:      parentVk,
+			PreviousWitness: groth16.PlaceholderWitness[ScalarField](parentCcs),
 		})
 
 	if err != nil {
