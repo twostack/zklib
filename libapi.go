@@ -1,20 +1,22 @@
 package zklib
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	native_plonk "github.com/consensys/gnark/backend/plonk"
+	"github.com/consensys/gnark/backend"
+	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/uints"
-	"github.com/consensys/gnark/std/recursion/plonk"
-	"github.com/consensys/gnark/test/unsafekzg"
+	"github.com/consensys/gnark/std/recursion/groth16"
 	"log"
+	"math/big"
 	"os"
 	"time"
-	plonk2 "zklib/twostack/plonk"
+	txivc "zklib/twostack/groth16"
 )
 
 /*
@@ -22,115 +24,206 @@ PreviousProof object to encapsulate the behaviour of
 doing setup just once, and then repeatedly
 constructing and verifying proofs and
 */
-type ProofObj struct {
+type BaseProof struct {
+	curveId    ecc.ID
+	innerField *big.Int
+	outerField *big.Int
+
+	verifierOptions backend.VerifierOption
+	proverOptions   backend.ProverOption
+
 	ccs          constraint.ConstraintSystem
-	verifyingKey native_plonk.VerifyingKey
-	provingKey   native_plonk.ProvingKey
+	verifyingKey native_groth16.VerifyingKey
+	provingKey   native_groth16.ProvingKey
 }
 
-func CompileInnerCiruit() (constraint.ConstraintSystem, error) {
-	innerField := ecc.BLS12_377.ScalarField()
-	innerCcs, err := frontend.Compile(innerField, scs.NewBuilder, &plonk2.Sha256InnerCircuit{})
+type NormalProof struct {
+	curveId    ecc.ID
+	innerField *big.Int
+	outerField *big.Int
+
+	verifierOptions backend.VerifierOption
+	proverOptions   backend.ProverOption
+
+	ccs      constraint.ConstraintSystem
+	innerCcs constraint.ConstraintSystem
+
+	verifyingKey native_groth16.VerifyingKey
+	provingKey   native_groth16.ProvingKey
+
+	parentVerifyingKey native_groth16.VerifyingKey
+}
+
+func (*BaseProof) New() (*BaseProof, error) {
+
+	po := &BaseProof{}
+
+	po.innerField = ecc.BLS24_315.ScalarField()
+	po.outerField = ecc.BW6_633.ScalarField()
+	po.curveId = ecc.BLS24_315
+
+	po.verifierOptions = groth16.GetNativeVerifierOptions(po.outerField, po.innerField)
+	po.proverOptions = groth16.GetNativeProverOptions(po.outerField, po.innerField)
+
+	ccs, err := frontend.Compile(po.innerField, r1cs.NewBuilder,
+		&txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{})
 	if err != nil {
 		return nil, err
 	}
 
-	return innerCcs, nil
+	po.ccs = ccs
+
+	return po, nil
 }
 
-func SetupCircuit(innerCcs constraint.ConstraintSystem) (native_plonk.VerifyingKey, native_plonk.ProvingKey, error) {
+func (po *BaseProof) SetupKeys() error {
 
-	start := time.Now()
-	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
-
-	if err != nil {
-		return nil, nil, err
+	if po.ccs == nil {
+		return fmt.Errorf("No constraint system found. Please call New() first.")
 	}
 
-	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
-	if err != nil {
-		return nil, nil, err
-	}
-	end := time.Since(start)
-	fmt.Printf("Circuit Setup took : %s\n", end)
-
-	return innerVK, innerPK, nil
-
-}
-
-func CreateInnerWitness(prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte, currTxId []byte) (witness.Witness, error) {
-	innerField := ecc.BLS12_377.ScalarField()
-
-	innerAssignment := &plonk2.Sha256InnerCircuit{}
-
-	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
-	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postfixBytes))
-	copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
-	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-
-	innerWitness, err := frontend.NewWitness(innerAssignment, innerField)
-
-	return innerWitness, err
-}
-
-func GenerateInnerProof(innerWitness witness.Witness, innerCcs constraint.ConstraintSystem, innerPK native_plonk.ProvingKey) (native_plonk.Proof, error) {
-	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
-
-	innerProof, err := native_plonk.Prove(innerCcs, innerPK, innerWitness, plonk.GetNativeProverOptions(outerField, innerField))
-
-	return innerProof, err
-
-}
-
-func VerifyInnerProof(publicWitness witness.Witness, innerProof native_plonk.Proof, innerVK native_plonk.VerifyingKey) bool {
-	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
-
-	err := native_plonk.Verify(innerProof, innerVK, publicWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
-
-	if err == nil {
-		return true
-	} else {
-		fmt.Println(err)
-		return false
-	}
-}
-
-// generate innerVK, innerPK, compiled circuit and save to disk
-func GenerateCircuitParams() error {
-
-	innerCcs, err := CompileInnerCiruit()
+	innerPK, innerVK, err := native_groth16.Setup(po.ccs)
 
 	if err != nil {
-		fmt.Println(err)
 		return err
 	}
 
-	innerVK, innerPK, err := SetupCircuit(innerCcs)
+	po.provingKey = innerPK
+	po.verifyingKey = innerVK
 
-	//circuitFile, err := os.Create("circuit.json")
-	//innerCcs.WriteTo(circuitFile)
-	//if err != nil {
-	//	log.Fatal(err)
-	//	return err
-	//}
-	//circuitFile.Close()
+	return nil
+}
+
+func (po *BaseProof) ComputeProof(witness witness.Witness) (
+	native_groth16.Proof,
+	error,
+) {
+	return native_groth16.Prove(po.ccs, po.provingKey, witness, po.proverOptions)
+}
+
+func (po *BaseProof) VerifyProof(witness witness.Witness, proof native_groth16.Proof) bool {
+	publicWitness, err := witness.Public()
+	err = native_groth16.Verify(proof, po.verifyingKey, publicWitness, po.verifierOptions)
+	if err != nil {
+		fmt.Printf("Fail on proof verification! %s\n", err)
+		return false
+	}
+	return true
+}
+
+func (po *BaseProof) CreateBaseCaseWitness(
+	prefixBytes []byte,
+	postFixBytes []byte,
+	prevTxnIdBytes []byte,
+	currTxId [32]byte,
+) (witness.Witness, error) {
+
+	innerAssignment := txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{}
+
+	//assign the current Txn data
+	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
+	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
+	copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
+
+	innerWitness, err := frontend.NewWitness(&innerAssignment, po.innerField)
+
+	if err != nil {
+		return nil, err
+	}
+	return innerWitness, nil
+}
+
+func (*NormalProof) New(parentCcs constraint.ConstraintSystem, vk native_groth16.VerifyingKey) (*NormalProof, error) {
+
+	po := &NormalProof{}
+
+	po.verifierOptions = groth16.GetNativeVerifierOptions(po.outerField, po.innerField)
+	po.proverOptions = groth16.GetNativeProverOptions(po.outerField, po.innerField)
+
+	po.innerField = ecc.BLS24_315.ScalarField()
+	po.outerField = ecc.BW6_633.ScalarField()
+	po.curveId = ecc.BLS24_315
+
+	parentVk, err := groth16.ValueOfVerifyingKey[txivc.G1Affine, txivc.G2Affine, txivc.GTEl](vk)
+	if err != nil {
+		return nil, err
+	}
+
+	innerCcs, err := frontend.Compile(po.outerField, r1cs.NewBuilder,
+		&txivc.Sha256Circuit[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
+			PreviousProof:   groth16.PlaceholderProof[txivc.G1Affine, txivc.G2Affine](parentCcs),
+			PreviousVk:      parentVk,
+			PreviousWitness: groth16.PlaceholderWitness[txivc.ScalarField](parentCcs),
+		})
+
+	if err != nil {
+		return nil, err
+	}
+
+	po.ccs = innerCcs
+
+	return po, nil
+}
+
+func (po *NormalProof) SetupKeys() (*NormalProof, error) {
+
+	pk, vk, err := native_groth16.Setup(po.ccs)
+	if err != nil {
+		return nil, err
+	}
+
+	po.verifyingKey = vk
+	po.provingKey = pk
+
+	return po, nil
+}
+
+func (po *NormalProof) CreateOuterAssignment(
+	circuitWitness groth16.Witness[txivc.ScalarField],
+	circuitProof groth16.Proof[txivc.G1Affine, txivc.G2Affine],
+	verifyingKey groth16.VerifyingKey[txivc.G1Affine, txivc.G2Affine, txivc.GTEl],
+	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, fullTxBytes []byte) txivc.Sha256Circuit[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl] {
+
+	outerAssignment := txivc.Sha256Circuit[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
+		PreviousWitness: circuitWitness,
+		PreviousProof:   circuitProof,
+		PreviousVk:      verifyingKey,
+	}
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	currTxId := sha256.Sum256(firstHash[:])
+
+	copy(outerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
+	copy(outerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
+	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(outerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+
+	tokenId := [32]byte{}
+	copy(tokenId[:], prevTxnIdBytes)
+	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
+
+	return outerAssignment
+}
+
+// generate innerVK, innerPK, compiled circuit and save to disk
+func (po *BaseProof) WriteKeys() error {
 
 	start := time.Now()
-	innerVKFile, err := os.Create("innervk.cbor")
-	innerVK.WriteRawTo(innerVKFile)
+	innerVKFile, err := os.Create("vk.cbor")
+	po.verifyingKey.WriteRawTo(innerVKFile)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
 	innerVKFile.Close()
 	end := time.Since(start)
-	fmt.Printf("Writing Inner Verifying Key took : %s\n", end)
+	fmt.Printf("Writing Verifying Key took : %s\n", end)
 
 	start = time.Now()
-	innerPKFile, err := os.Create("innerpk.cbor")
-	innerPK.WriteRawTo(innerPKFile)
+	innerPKFile, err := os.Create("pk.cbor")
+	po.provingKey.WriteRawTo(innerPKFile)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -142,140 +235,34 @@ func GenerateCircuitParams() error {
 	return nil
 }
 
-func UnmarshalCircuitParams() (native_plonk.VerifyingKey, native_plonk.ProvingKey, constraint.ConstraintSystem, error) {
+func (po *BaseProof) ReadKeys() error {
 
-	//just compile. I don't think this takes long
 	start := time.Now()
-	ccs, err := CompileInnerCiruit()
-	if err != nil {
-		log.Fatal(err)
-		return nil, nil, nil, err
-	}
-	end := time.Since(start)
-	fmt.Printf("Compiler took : %s\n", end)
-
-	start = time.Now()
 	innerVKFile, err := os.OpenFile("innervk.cbor", os.O_RDONLY, 0444) //read-only
 	if err != nil {
 		log.Fatal(err)
-		return nil, nil, nil, err
+		return err
 	}
-	innerVK := native_plonk.NewVerifyingKey(ecc.BLS12_377) //curve for inner circuit
-	innerVK.ReadFrom(innerVKFile)
+	innerVK := native_groth16.NewVerifyingKey(po.curveId) //curve for inner circuit
+	po.verifyingKey = innerVK
+	po.verifyingKey.ReadFrom(innerVKFile)
 	innerVKFile.Close()
-	end = time.Since(start)
+	end := time.Since(start)
 	fmt.Printf("Verifying Key took : %s\n", end)
 
 	start = time.Now()
 	innerPKFile, err := os.OpenFile("innerpk.cbor", os.O_RDONLY, 0444)
 	if err != nil {
 		log.Fatal(err)
-		return nil, nil, nil, err
+		return err
 	}
-	innerPK := native_plonk.NewProvingKey(ecc.BLS12_377) //curve for inner circuit
-	innerPK.ReadFrom(innerPKFile)
+	innerPK := native_groth16.NewProvingKey(po.curveId) //curve for inner circuit
+	po.provingKey = innerPK
+	po.provingKey.ReadFrom(innerPKFile)
 	innerPKFile.Close()
 	end = time.Since(start)
 	fmt.Printf("Proving Key took : %s\n", end)
 
-	return innerVK, innerPK, ccs, nil
+	return nil
 
 }
-
-//provide VK, PK and Circuit
-
-/*
-func SetupOuterProof(
-	innerCcs constraint.ConstraintSystem,
-	innerVK native_plonk.PreviousVk,
-	innerWitness witness.Witness,
-	innerProof native_plonk.PreviousProof,
-	prevTxnIdBytes []byte, //, _ := hex.DecodeString("193a78f8a6883ae82d7e9f146934af4d6edc2f0f5a16d0b931bdfaa9a0d22eac")
-) {
-
-	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProofPlonk(assert, ecc.BLS12_377.ScalarField(), ecc.BW6_761.ScalarField())
-
-	circuitVk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerVK)
-	if err != nil {
-		panic(err)
-	}
-	circuitWitness, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](innerWitness)
-	if err != nil {
-		panic(err)
-	}
-	circuitProof, err := plonk.ValueOfProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
-	if err != nil {
-		panic(err)
-	}
-
-	outerCircuit := &recurse.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		PreviousWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
-		PreviousProof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
-		PreviousVk: circuitVk,
-	}
-	copy(outerCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
-
-	outerAssignment := &recurse.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		PreviousWitness: circuitWitness,
-		PreviousProof:        circuitProof,
-	}
-	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
-
-	// compile the outer circuit
-	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, outerCircuit)
-	if err != nil {
-		panic("compile failed: " + err.Error())
-	}
-
-	// NB! UNSAFE! Use MPC.
-	srs, srsLagrange, err := unsafekzg.NewSRS(ccs)
-	if err != nil {
-		panic(err)
-	}
-
-	// create PLONK setup. NB! UNSAFE
-	pk, vk, err := native_plonk.Setup(ccs, srs, srsLagrange) // UNSAFE! Use MPC
-	if err != nil {
-		panic("setup failed: " + err.Error())
-	}
-
-	// create prover witness from the assignment
-	secretWitness, err := frontend.NewWitness(outerAssignment, ecc.BW6_761.ScalarField())
-	if err != nil {
-		panic("secret witness failed: " + err.Error())
-	}
-
-	// create public witness from the assignment
-	publicWitness, err := secretWitness.Public()
-	if err != nil {
-		panic("public witness failed: " + err.Error())
-	}
-
-}
-
-*/
-
-func GenerateOuterProof(
-	ccs constraint.ConstraintSystem,
-	pk native_plonk.ProvingKey,
-	secretWitness witness.Witness) (native_plonk.Proof, error) {
-
-	// construct the PLONK proof of verifying PLONK proof in-circuit
-	outerProof, err := native_plonk.Prove(ccs, pk, secretWitness)
-	if err != nil {
-		panic("proving failed: " + err.Error())
-	}
-
-	return outerProof, err
-}
-
-func VerifyOuterProof(outerProof native_plonk.Proof, vk native_plonk.VerifyingKey, publicWitness witness.Witness) {
-
-	// verify the PLONK proof
-	err := native_plonk.Verify(outerProof, vk, publicWitness)
-	if err != nil {
-		panic("circuit verification failed: " + err.Error())
-	}
-}
-
-// export
