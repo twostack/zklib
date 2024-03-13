@@ -27,39 +27,61 @@ func main() {
 	fmt.Printf("It took : %s", end)
 }
 
+func benchLibApiIssuance() {
+	//bootstrap proof system
+
+	//load proving keys
+
+	//generate an issuance proof for a txn
+
+	//serialize the proof to disk
+}
+
+func benchLibApiProofVerify() {
+	//bootstrap proof system
+
+	//load verifying key
+
+	//load proof from disk
+
+	//create witness data for proof
+
+	//verify that proof holds for given witness
+}
+
 func benchLibApiNormal() {
 	baseProof, _ := zklib.NewBaseProof()
 	baseProof.ReadKeys()
 
 	normalProof, err := zklib.NewNormalProof(baseProof.Ccs, baseProof.VerifyingKey)
 
-	//start := time.Now()
-	//err = normalProof.SetupKeys()
-	//if err != nil {
-	//	fmt.Printf("Normal proof key setup failed %s\n")
-	//	return
-	//}
-	//elapsed := time.Since(start)
-	//fmt.Printf("Setup took %s\n", elapsed)
-	//
-	////write keys to disk
-	//
-	//start = time.Now()
-	//err = normalProof.WriteKeys()
-	//if err != nil {
-	//	fmt.Printf("Exporting normal proof keys failed %s\n")
-	//	return
-	//}
-	//elapsed = time.Since(start)
-	//fmt.Printf("Writing keys took: %s\n", elapsed)
-
 	start := time.Now()
+	err = normalProof.SetupKeys()
+	if err != nil {
+		fmt.Printf("Normal proof key setup failed %s\n")
+		return
+	}
+	elapsed := time.Since(start)
+	fmt.Printf("Setup took %s\n", elapsed)
+
+	//write keys to disk
+
+	start = time.Now()
+	err = normalProof.WriteKeys()
+	if err != nil {
+		fmt.Printf("Exporting normal proof keys failed %s\n")
+		return
+	}
+	elapsed = time.Since(start)
+	fmt.Printf("Writing keys took: %s\n", elapsed)
+
+	start = time.Now()
 	err = normalProof.ReadKeys()
 	if err != nil {
 		fmt.Printf("Importing normal case keys failed %s\n")
 		return
 	}
-	elapsed := time.Since(start)
+	elapsed = time.Since(start)
 	fmt.Printf("Reading back keys took: %s\n", elapsed)
 
 }
