@@ -54,7 +54,7 @@ type NormalProof struct {
 	parentVerifyingKey native_groth16.VerifyingKey
 }
 
-func (*BaseProof) New() (*BaseProof, error) {
+func NewBaseProof() (*BaseProof, error) {
 
 	po := &BaseProof{}
 
@@ -212,25 +212,25 @@ func (po *BaseProof) WriteKeys() error {
 
 	start := time.Now()
 	innerVKFile, err := os.Create("vk.cbor")
-	po.verifyingKey.WriteRawTo(innerVKFile)
+	po.verifyingKey.WriteTo(innerVKFile)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
 	innerVKFile.Close()
 	end := time.Since(start)
-	fmt.Printf("Writing Verifying Key took : %s\n", end)
+	fmt.Printf("Exporting Verifying Key took : %s\n", end)
 
 	start = time.Now()
 	innerPKFile, err := os.Create("pk.cbor")
-	po.provingKey.WriteRawTo(innerPKFile)
+	po.provingKey.WriteTo(innerPKFile)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
 	innerPKFile.Close()
 	end = time.Since(start)
-	fmt.Printf("Writing Proving Key took : %s\n", end)
+	fmt.Printf("Exporting Proving Key took : %s\n", end)
 
 	return nil
 }
@@ -238,7 +238,7 @@ func (po *BaseProof) WriteKeys() error {
 func (po *BaseProof) ReadKeys() error {
 
 	start := time.Now()
-	innerVKFile, err := os.OpenFile("innervk.cbor", os.O_RDONLY, 0444) //read-only
+	innerVKFile, err := os.OpenFile("vk.cbor", os.O_RDONLY, 0444) //read-only
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -248,10 +248,10 @@ func (po *BaseProof) ReadKeys() error {
 	po.verifyingKey.ReadFrom(innerVKFile)
 	innerVKFile.Close()
 	end := time.Since(start)
-	fmt.Printf("Verifying Key took : %s\n", end)
+	fmt.Printf("Importing Verifying Key took : %s\n", end)
 
 	start = time.Now()
-	innerPKFile, err := os.OpenFile("innerpk.cbor", os.O_RDONLY, 0444)
+	innerPKFile, err := os.OpenFile("pk.cbor", os.O_RDONLY, 0444)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -261,7 +261,7 @@ func (po *BaseProof) ReadKeys() error {
 	po.provingKey.ReadFrom(innerPKFile)
 	innerPKFile.Close()
 	end = time.Since(start)
-	fmt.Printf("Proving Key took : %s\n", end)
+	fmt.Printf("Importing Proving Key took : %s\n", end)
 
 	return nil
 

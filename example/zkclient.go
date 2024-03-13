@@ -11,6 +11,7 @@ import (
 	"github.com/consensys/gnark/std/recursion/groth16"
 	"github.com/consensys/gnark/std/recursion/plonk"
 	"time"
+	"zklib"
 	grothivc "zklib/twostack/groth16"
 	plonkivc "zklib/twostack/plonk"
 )
@@ -18,10 +19,43 @@ import (
 func main() {
 	start := time.Now()
 	//benchNormalCasePlonk()
-	benchNormalCaseGroth16()
+	//benchNormalCaseGroth16()
+	benchLibApi()
 	end := time.Since(start)
 
 	fmt.Printf("It took : %s", end)
+}
+
+func benchLibApi() {
+	baseProof, err := zklib.NewBaseProof()
+
+	if err != nil {
+		fmt.Printf("failed to create proof object %s\n")
+		return
+	}
+
+	start := time.Now()
+	err = baseProof.SetupKeys()
+	if err != nil {
+		fmt.Printf("Base proof key setup failed %s\n")
+		return
+	}
+	elapsed := time.Since(start)
+	fmt.Printf("Setup took %s\n", elapsed)
+
+	//write keys to disk
+
+	start = time.Now()
+	baseProof.WriteKeys()
+	elapsed = time.Since(start)
+	fmt.Printf("Writing keys took: %s\n", elapsed)
+
+	start = time.Now()
+	baseProof.ReadKeys()
+	elapsed = time.Since(start)
+	fmt.Printf("Reading back keys took: %s\n", elapsed)
+
+	//test recovery from disk
 }
 
 func benchNormalCasePlonk() {
