@@ -32,9 +32,9 @@ type BaseProof struct {
 	verifierOptions backend.VerifierOption
 	proverOptions   backend.ProverOption
 
-	ccs          constraint.ConstraintSystem
-	verifyingKey native_groth16.VerifyingKey
-	provingKey   native_groth16.ProvingKey
+	Ccs          constraint.ConstraintSystem
+	VerifyingKey native_groth16.VerifyingKey
+	ProvingKey   native_groth16.ProvingKey
 }
 
 type NormalProof struct {
@@ -48,10 +48,10 @@ type NormalProof struct {
 	ccs      constraint.ConstraintSystem
 	innerCcs constraint.ConstraintSystem
 
-	verifyingKey native_groth16.VerifyingKey
-	provingKey   native_groth16.ProvingKey
+	VerifyingKey native_groth16.VerifyingKey
+	ProvingKey   native_groth16.ProvingKey
 
-	parentVerifyingKey native_groth16.VerifyingKey
+	ParentVerifyingKey native_groth16.VerifyingKey
 }
 
 func NewBaseProof() (*BaseProof, error) {
@@ -60,6 +60,8 @@ func NewBaseProof() (*BaseProof, error) {
 
 	po.innerField = ecc.BLS24_315.ScalarField()
 	po.outerField = ecc.BW6_633.ScalarField()
+
+	//IMPORTANT: Base proof needs to read the inner field's curveId
 	po.curveId = ecc.BLS24_315
 
 	po.verifierOptions = groth16.GetNativeVerifierOptions(po.outerField, po.innerField)
@@ -71,25 +73,25 @@ func NewBaseProof() (*BaseProof, error) {
 		return nil, err
 	}
 
-	po.ccs = ccs
+	po.Ccs = ccs
 
 	return po, nil
 }
 
 func (po *BaseProof) SetupKeys() error {
 
-	if po.ccs == nil {
+	if po.Ccs == nil {
 		return fmt.Errorf("No constraint system found. Please call New() first.")
 	}
 
-	innerPK, innerVK, err := native_groth16.Setup(po.ccs)
+	innerPK, innerVK, err := native_groth16.Setup(po.Ccs)
 
 	if err != nil {
 		return err
 	}
 
-	po.provingKey = innerPK
-	po.verifyingKey = innerVK
+	po.ProvingKey = innerPK
+	po.VerifyingKey = innerVK
 
 	return nil
 }
@@ -98,12 +100,12 @@ func (po *BaseProof) ComputeProof(witness witness.Witness) (
 	native_groth16.Proof,
 	error,
 ) {
-	return native_groth16.Prove(po.ccs, po.provingKey, witness, po.proverOptions)
+	return native_groth16.Prove(po.Ccs, po.ProvingKey, witness, po.proverOptions)
 }
 
 func (po *BaseProof) VerifyProof(witness witness.Witness, proof native_groth16.Proof) bool {
 	publicWitness, err := witness.Public()
-	err = native_groth16.Verify(proof, po.verifyingKey, publicWitness, po.verifierOptions)
+	err = native_groth16.Verify(proof, po.VerifyingKey, publicWitness, po.verifierOptions)
 	if err != nil {
 		fmt.Printf("Fail on proof verification! %s\n", err)
 		return false
@@ -135,7 +137,36 @@ func (po *BaseProof) CreateBaseCaseWitness(
 	return innerWitness, nil
 }
 
-func (*NormalProof) New(parentCcs constraint.ConstraintSystem, vk native_groth16.VerifyingKey) (*NormalProof, error) {
+// generate innerVK, innerPK, compiled circuit and save to disk
+func (po *BaseProof) WriteKeys() error {
+	err := writeKeys(po.VerifyingKey, po.ProvingKey, "base_")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (po *BaseProof) ReadKeys() error {
+	vk, pk, err := readKeys("base_", po.curveId)
+
+	if err != nil {
+		return err
+	}
+
+	po.ProvingKey = pk
+	po.VerifyingKey = vk
+
+	return nil
+}
+
+/**
+--------------------------------
+Normal Proof methods]
+-------------------------------
+*/
+
+func NewNormalProof(parentCcs constraint.ConstraintSystem, vk native_groth16.VerifyingKey) (*NormalProof, error) {
 
 	po := &NormalProof{}
 
@@ -144,7 +175,9 @@ func (*NormalProof) New(parentCcs constraint.ConstraintSystem, vk native_groth16
 
 	po.innerField = ecc.BLS24_315.ScalarField()
 	po.outerField = ecc.BW6_633.ScalarField()
-	po.curveId = ecc.BLS24_315
+
+	//IMPORTANT: Normal proof needs to read the OUTER field's curveId
+	po.curveId = ecc.BW6_633
 
 	parentVk, err := groth16.ValueOfVerifyingKey[txivc.G1Affine, txivc.G2Affine, txivc.GTEl](vk)
 	if err != nil {
@@ -167,17 +200,17 @@ func (*NormalProof) New(parentCcs constraint.ConstraintSystem, vk native_groth16
 	return po, nil
 }
 
-func (po *NormalProof) SetupKeys() (*NormalProof, error) {
+func (po *NormalProof) SetupKeys() error {
 
 	pk, vk, err := native_groth16.Setup(po.ccs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	po.verifyingKey = vk
-	po.provingKey = pk
+	po.VerifyingKey = vk
+	po.ProvingKey = pk
 
-	return po, nil
+	return nil
 }
 
 func (po *NormalProof) CreateOuterAssignment(
@@ -207,62 +240,92 @@ func (po *NormalProof) CreateOuterAssignment(
 	return outerAssignment
 }
 
-// generate innerVK, innerPK, compiled circuit and save to disk
-func (po *BaseProof) WriteKeys() error {
-
-	start := time.Now()
-	innerVKFile, err := os.Create("vk.cbor")
-	po.verifyingKey.WriteTo(innerVKFile)
+func (po *NormalProof) WriteKeys() error {
+	err := writeKeys(po.VerifyingKey, po.ProvingKey, "norm_")
 	if err != nil {
-		log.Fatal(err)
 		return err
 	}
-	innerVKFile.Close()
-	end := time.Since(start)
-	fmt.Printf("Exporting Verifying Key took : %s\n", end)
-
-	start = time.Now()
-	innerPKFile, err := os.Create("pk.cbor")
-	po.provingKey.WriteTo(innerPKFile)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	innerPKFile.Close()
-	end = time.Since(start)
-	fmt.Printf("Exporting Proving Key took : %s\n", end)
 
 	return nil
 }
 
-func (po *BaseProof) ReadKeys() error {
+func (po *NormalProof) ReadKeys() error {
+	vk, pk, err := readKeys("norm_", po.curveId)
 
-	start := time.Now()
-	innerVKFile, err := os.OpenFile("vk.cbor", os.O_RDONLY, 0444) //read-only
 	if err != nil {
-		log.Fatal(err)
 		return err
 	}
-	innerVK := native_groth16.NewVerifyingKey(po.curveId) //curve for inner circuit
-	po.verifyingKey = innerVK
-	po.verifyingKey.ReadFrom(innerVKFile)
+
+	po.ProvingKey = pk
+	po.VerifyingKey = vk
+
+	return nil
+}
+
+func writeKeys(verifyingKey native_groth16.VerifyingKey, provingKey native_groth16.ProvingKey, prefix string) error {
+
+	start := time.Now()
+	innerVKFile, err := os.Create(prefix + "vk.cbor")
+	_, err = verifyingKey.WriteRawTo(innerVKFile)
+	if err != nil {
+		return fmt.Errorf("Failed to write Verifying Key - ", err)
+	}
+	err = innerVKFile.Close()
+	if err != nil {
+		return fmt.Errorf("Failed to close verifying key file handle  - ", err)
+	}
+	end := time.Since(start)
+	fmt.Printf("Exporting Verifying Key took : %s\n", end)
+
+	start = time.Now()
+	innerPKFile, err := os.Create(prefix + "pk.cbor")
+	_, err = provingKey.WriteRawTo(innerPKFile)
+	if err != nil {
+		return fmt.Errorf("Failed to write Proving Key - ", err)
+	}
+	err = innerPKFile.Close()
+	if err != nil {
+		return fmt.Errorf("Failed to properly close Proving Key File handle - ", err)
+	}
+	end = time.Since(start)
+	fmt.Printf("Exporting Proving Key took : %s\n", end)
+	return nil
+}
+
+func readKeys(prefix string, curveId ecc.ID) (native_groth16.VerifyingKey, native_groth16.ProvingKey, error) {
+
+	start := time.Now()
+	innerVKFile, err := os.OpenFile(prefix+"vk.cbor", os.O_RDONLY, 0444) //read-only
+	if err != nil {
+		log.Fatal(err)
+		return nil, nil, err
+	}
+	innerVK := native_groth16.NewVerifyingKey(curveId) //curve for inner circuit
+	_, err = innerVK.ReadFrom(innerVKFile)
+	if err != nil {
+		log.Fatal(err)
+		return nil, nil, err
+	}
 	innerVKFile.Close()
 	end := time.Since(start)
 	fmt.Printf("Importing Verifying Key took : %s\n", end)
 
 	start = time.Now()
-	innerPKFile, err := os.OpenFile("pk.cbor", os.O_RDONLY, 0444)
+	innerPKFile, err := os.OpenFile(prefix+"pk.cbor", os.O_RDONLY, 0444)
 	if err != nil {
 		log.Fatal(err)
-		return err
+		return nil, nil, err
 	}
-	innerPK := native_groth16.NewProvingKey(po.curveId) //curve for inner circuit
-	po.provingKey = innerPK
-	po.provingKey.ReadFrom(innerPKFile)
+	innerPK := native_groth16.NewProvingKey(curveId) //curve for inner circuit
+	_, err = innerPK.ReadFrom(innerPKFile)
+	if err != nil {
+		log.Fatal(err)
+		return nil, nil, err
+	}
+
 	innerPKFile.Close()
 	end = time.Since(start)
 	fmt.Printf("Importing Proving Key took : %s\n", end)
 
-	return nil
-
+	return innerVK, innerPK, nil
 }

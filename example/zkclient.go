@@ -20,13 +20,51 @@ func main() {
 	start := time.Now()
 	//benchNormalCasePlonk()
 	//benchNormalCaseGroth16()
-	benchLibApi()
+	//benchLibApiBase()
+	benchLibApiNormal()
 	end := time.Since(start)
 
 	fmt.Printf("It took : %s", end)
 }
 
-func benchLibApi() {
+func benchLibApiNormal() {
+	baseProof, _ := zklib.NewBaseProof()
+	baseProof.ReadKeys()
+
+	normalProof, err := zklib.NewNormalProof(baseProof.Ccs, baseProof.VerifyingKey)
+
+	//start := time.Now()
+	//err = normalProof.SetupKeys()
+	//if err != nil {
+	//	fmt.Printf("Normal proof key setup failed %s\n")
+	//	return
+	//}
+	//elapsed := time.Since(start)
+	//fmt.Printf("Setup took %s\n", elapsed)
+	//
+	////write keys to disk
+	//
+	//start = time.Now()
+	//err = normalProof.WriteKeys()
+	//if err != nil {
+	//	fmt.Printf("Exporting normal proof keys failed %s\n")
+	//	return
+	//}
+	//elapsed = time.Since(start)
+	//fmt.Printf("Writing keys took: %s\n", elapsed)
+
+	start := time.Now()
+	err = normalProof.ReadKeys()
+	if err != nil {
+		fmt.Printf("Importing normal case keys failed %s\n")
+		return
+	}
+	elapsed := time.Since(start)
+	fmt.Printf("Reading back keys took: %s\n", elapsed)
+
+}
+
+func benchLibApiBase() {
 	baseProof, err := zklib.NewBaseProof()
 
 	if err != nil {
