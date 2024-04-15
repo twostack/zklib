@@ -10,6 +10,7 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	"github.com/consensys/gnark/std/recursion/plonk"
+	"runtime"
 	"time"
 	"zklib"
 	grothivc "zklib/twostack/groth16"
@@ -17,11 +18,12 @@ import (
 )
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	start := time.Now()
 	//benchNormalCasePlonk()
-	//benchNormalCaseGroth16()
+	benchNormalCaseGroth16()
 	//benchLibApiBase()
-	benchLibApiNormal()
+	//benchLibApiNormal()
 	end := time.Since(start)
 
 	fmt.Printf("It took : %s", end)
