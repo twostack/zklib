@@ -1,4 +1,4 @@
-module zklib
+module github.com/twostack/zklib
 
 go 1.21.6
 
