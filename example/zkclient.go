@@ -10,11 +10,11 @@ import (
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	"github.com/consensys/gnark/std/recursion/plonk"
+	"github.com/twostack/zklib"
+	grothivc "github.com/twostack/zklib/twostack/groth16"
+	plonkivc "github.com/twostack/zklib/twostack/plonk"
 	"runtime"
 	"time"
-	"zklib"
-	grothivc "zklib/twostack/groth16"
-	plonkivc "zklib/twostack/plonk"
 )
 
 func main() {

@@ -12,11 +12,11 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/recursion/groth16"
+	txivc "github.com/twostack/zklib/twostack/groth16"
 	"log"
 	"math/big"
 	"os"
 	"time"
-	txivc "zklib/twostack/groth16"
 )
 
 /*
