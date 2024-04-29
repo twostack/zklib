@@ -213,14 +213,14 @@ func benchNormalCaseGroth16() {
 
 	//setup circuit params
 	start := time.Now()
-	innerCcs, provingKey, verifyingKey, err := grothivc.SetupBaseCase(innerField)
+	innerCcs, provingKey, verifyingKey, err := grothivc.SetupBaseCase(len(fullTxBytes), innerField)
 	elapsed := time.Since(start)
 	fmt.Printf("Base case setup: %s\n", elapsed)
 
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := grothivc.CreateBaseCaseWitness(prefixBytes, postFixBytes, prevTxnIdBytes, genesisTxId, innerField)
+	genesisWitness, err := grothivc.CreateBaseCaseWitness(fullTxBytes, genesisTxId, innerField)
 
 	start = time.Now()
 	genesisProof, err := grothivc.ComputeProof(innerCcs, provingKey, genesisWitness, proverOptions)
