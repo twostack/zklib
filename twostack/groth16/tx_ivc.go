@@ -12,9 +12,10 @@ import (
 * Base case to generate initial proof to get things started
  */
 type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	CurrTxPrefix [5]uints.U8 //5
-	PrevTxId     [32]uints.U8
-	CurrTxPost   [154]uints.U8 //81
+	RawTx []frontend.Variable
+	//CurrTxPrefix [5]uints.U8 //5
+	//PrevTxId     [32]uints.U8
+	//CurrTxPost   [154]uints.U8 //81
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
@@ -30,11 +31,15 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 	uapi, err := uints.New[uints.U32](api)
 
 	//assert that currTxId == hash(prefix || prevTxId || postfix )
-	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
-	fullTx = append(fullTx, circuit.CurrTxPost[:]...)
+	//fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
+	//fullTx = append(fullTx, circuit.CurrTxPost[:]...)
+	ret := make([]uints.U8, len(circuit.RawTx))
+	for i := range ret {
+		ret[i] = uapi.ByteValueOf(circuit.RawTx[i])
+	}
 
 	//do double-sha256
-	firstHash, err := calculateSha256(api, fullTx)
+	firstHash, err := calculateSha256(api, ret)
 	if err != nil {
 		return err
 	}

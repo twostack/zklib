@@ -114,18 +114,20 @@ func (po *BaseProof) VerifyProof(witness witness.Witness, proof native_groth16.P
 }
 
 func (po *BaseProof) CreateBaseCaseWitness(
-	prefixBytes []byte,
-	postFixBytes []byte,
-	prevTxnIdBytes []byte,
+	rawTxBytes []byte,
 	currTxId [32]byte,
 ) (witness.Witness, error) {
 
-	innerAssignment := txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{}
+	innerAssignment := txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
+		RawTx: make([]frontend.Variable, len(rawTxBytes)),
+	}
 
 	//assign the current Txn data
-	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
-	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
-	copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	//assign the current Txn data
+	for ndx, entry := range rawTxBytes {
+		innerAssignment.RawTx[ndx] = entry
+	}
+	//copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTxBytes))
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 

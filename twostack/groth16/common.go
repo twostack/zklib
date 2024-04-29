@@ -40,10 +40,12 @@ type GTEl = sw_bls24315.GT
 //type G2Affine = sw_bls24315.G2Affine
 //type GTEl = sw_bls24315.GT
 
-func SetupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	baseCcs, err := frontend.Compile(innerField, r1cs.NewBuilder,
-		&Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{})
+		&Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{
+			RawTx: make([]frontend.Variable, txSize),
+		})
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -84,19 +86,21 @@ func CreateBaseCaseProof(proverOptions backend.ProverOption, innerCcs constraint
 }
 
 func CreateBaseCaseWitness(
-	prefixBytes []byte,
-	postFixBytes []byte,
-	prevTxnIdBytes []byte,
+	rawTxBytes []byte,
 	currTxId [32]byte,
 	innerField *big.Int,
 ) (witness.Witness, error) {
 
-	innerAssignment := Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{}
+	innerAssignment := Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{
+		RawTx: make([]frontend.Variable, len(rawTxBytes)),
+	}
 
 	//assign the current Txn data
-	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
-	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
-	copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	for ndx, entry := range rawTxBytes {
+		innerAssignment.RawTx[ndx] = entry
+	}
+
+	//copy(innerAssignment.RawTx[:], rawTxBytes)
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 

@@ -12,6 +12,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/test"
+	txivc "github.com/twostack/zklib/twostack/plonk"
 	"math/big"
 	"testing"
 )
@@ -31,14 +32,14 @@ func TestInnerProofCircuit(t *testing.T) {
 	fmt.Println(hex.EncodeToString(currTxId[:]))
 
 	//full witness
-	witness := plonk.Sha256InnerCircuit{}
+	witness := txivc.Sha256InnerCircuit{}
 	copy(witness.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(witness.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(witness.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(witness.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
 	// inner circuit pre-image values only
-	testCircuit := plonk.Sha256InnerCircuit{}
+	testCircuit := txivc.Sha256InnerCircuit{}
 	copy(testCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(testCircuit.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(testCircuit.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
@@ -53,13 +54,13 @@ func TestInnerProofCircuit(t *testing.T) {
 	//test the prover
 	assert := test.NewAssert(t)
 
-	proverCircuit := plonk.Sha256InnerCircuit{}
+	proverCircuit := txivc.Sha256InnerCircuit{}
 	copy(proverCircuit.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	copy(proverCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(proverCircuit.CurrTxPost[:], uints.NewU8Array(postFixBytes))
 	copy(proverCircuit.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 
-	assert.ProverSucceeded(&plonk.Sha256InnerCircuit{}, &proverCircuit, test.WithCurves(ecc.BLS12_377))
+	assert.ProverSucceeded(&txivc.Sha256InnerCircuit{}, &proverCircuit, test.WithCurves(ecc.BLS12_377))
 
 }
 
@@ -80,7 +81,7 @@ func TestOuterProofAndVerify(t *testing.T) {
 // recursively. In this example the Groth16 keys are generated on the fly, but
 // in practice should be generated once and using MPC.
 func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof) {
-	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &plonk.Sha256InnerCircuit{})
+	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &txivc.Sha256InnerCircuit{})
 	if err != nil {
 		panic(err)
 	}
@@ -100,7 +101,7 @@ func computeInnerProof(field *big.Int) (constraint.ConstraintSystem, groth16.Ver
 	currTxId := sha256.Sum256(firstHash[:])
 
 	// inner proof
-	innerAssignment := &plonk.Sha256InnerCircuit{}
+	innerAssignment := &txivc.Sha256InnerCircuit{}
 
 	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
