@@ -85,7 +85,7 @@ func CreateBaseCaseProof(proverOptions backend.ProverOption, innerCcs constraint
 	return native_groth16.Prove(innerCcs, provingKey, genesisWitness, proverOptions)
 }
 
-func CreateBaseCaseWitness(
+func CreateBaseCaseFullWitness(
 	rawTxBytes []byte,
 	currTxId [32]byte,
 	innerField *big.Int,
@@ -111,16 +111,84 @@ func CreateBaseCaseWitness(
 	return innerWitness, nil
 }
 
-func CreateOuterAssignment(
-	circuitWitness groth16.Witness[ScalarField],
-	circuitProof groth16.Proof[G1Affine, G2Affine],
-	verifyingKey groth16.VerifyingKey[G1Affine, G2Affine, GTEl],
-	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, fullTxBytes []byte) Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl] {
+func CreateBaseLightWitness(currTxId []byte, innerField *big.Int) (witness.Witness, error) {
+	innerAssignment := Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{}
 
-	outerAssignment := Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
-		PreviousWitness: circuitWitness,
-		PreviousProof:   circuitProof,
-		PreviousVk:      verifyingKey,
+	//copy(innerAssignment.RawTx[:], rawTxBytes)
+	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
+
+	innerWitness, err := frontend.NewWitness(&innerAssignment, innerField)
+	if err != nil {
+		return nil, err
+	}
+	return innerWitness, nil
+
+}
+
+func CreateNormalLightWitness(currTxId []byte, tokenId []byte, innerField *big.Int) (witness.Witness, error) {
+
+	innerAssignment := Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{}
+
+	//copy(innerAssignment.RawTx[:], rawTxBytes)
+	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+	copy(innerAssignment.TokenId[:], uints.NewU8Array(tokenId[:])) //base case tokenId == txId
+
+	innerWitness, err := frontend.NewWitness(&innerAssignment, innerField)
+	if err != nil {
+		return nil, err
+	}
+	return innerWitness, nil
+
+}
+
+func CreateNormalCaseWitness(
+	innerWitness witness.Witness,
+	innerProof native_groth16.Proof,
+	innerVk native_groth16.VerifyingKey,
+	prefixBytes []byte,
+	prevTxnIdBytes []byte,
+	postfixBytes []byte,
+	fullTxBytes []byte,
+	outerField *big.Int,
+) (witness.Witness, error) {
+
+	outerAssignment, err := CreateOuterAssignment(innerWitness, innerProof, innerVk, prefixBytes, prevTxnIdBytes, postfixBytes, fullTxBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	outerWitness, err := frontend.NewWitness(outerAssignment, outerField)
+	if err != nil {
+		return nil, err
+	}
+
+	return outerWitness, nil
+}
+
+func CreateOuterAssignment(
+	circuitWitness witness.Witness,
+	circuitProof native_groth16.Proof,
+	verifyingKey native_groth16.VerifyingKey,
+	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, fullTxBytes []byte) (*Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl], error) {
+
+	innerWitness, err := groth16.ValueOfWitness[ScalarField](circuitWitness)
+	if err != nil {
+		return nil, err
+	}
+	innerProof, err := groth16.ValueOfProof[G1Affine, G2Affine](circuitProof)
+	if err != nil {
+		return nil, err
+	}
+	innerVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](verifyingKey)
+	if err != nil {
+		return nil, err
+	}
+
+	outerAssignment := &Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
+		PreviousWitness: innerWitness,
+		PreviousProof:   innerProof,
+		PreviousVk:      innerVk,
 	}
 
 	firstHash := sha256.Sum256(fullTxBytes)
@@ -135,7 +203,7 @@ func CreateOuterAssignment(
 	copy(tokenId[:], prevTxnIdBytes)
 	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
 
-	return outerAssignment
+	return outerAssignment, nil
 }
 
 func VerifyProof(genesisWitness witness.Witness, genesisProof native_groth16.Proof, verifyingKey native_groth16.VerifyingKey, verifierOptions backend.VerifierOption) bool {

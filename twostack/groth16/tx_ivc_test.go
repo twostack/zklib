@@ -35,7 +35,7 @@ func TestBaseCase(t *testing.T) {
 	//fmt.Println(hex.EncodeToString(genesisTxId[:]))
 	// create full genesis witness (placeholders, prevTxnIdBytes is empty
 	//vk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](verifyingKey)
-	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, genesisTxId, innerField)
+	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, genesisTxId, innerField)
 
 	assert.NoError(err)
 	genesisProof, err := native_groth16.Prove(innerCcs, provingKey, genesisWitness, groth16.GetNativeProverOptions(outerField, innerField))
@@ -68,7 +68,7 @@ func TestNormalCase(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, genesisTxId, innerField)
+	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, genesisTxId, innerField)
 
 	start = time.Now()
 	genesisProof, err := CreateBaseCaseProof(proverOptions, baseCcs, genesisWitness, basePk)
@@ -79,8 +79,6 @@ func TestNormalCase(t *testing.T) {
 	//err := native_plonk.Verify(genesisProof, verifyingKey, genesisWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
 
 	//outerField := ecc.BW6_761.ScalarField()
-	innerWitness, err := groth16.ValueOfWitness[ScalarField](genesisWitness)
-	innerProof, err := groth16.ValueOfProof[G1Affine, G2Affine](genesisProof)
 
 	innerVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](baseVk)
 
@@ -90,8 +88,8 @@ func TestNormalCase(t *testing.T) {
 	postFixBytes, _ := hex.DecodeString("000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
 	fullTxBytes, _ = hex.DecodeString("0200000001faf3013aab53ae122e6cfdef7720c7a785fed4ce7f8f3dd19379f31e62651c71000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
 
-	outerAssignment := CreateOuterAssignment(innerWitness, innerProof, innerVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
-	outerWitness, err := frontend.NewWitness(&outerAssignment, outerField)
+	outerAssignment, err := CreateOuterAssignment(genesisWitness, genesisProof, baseVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
+	outerWitness, err := frontend.NewWitness(outerAssignment, outerField)
 
 	start = time.Now()
 	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(outerField, baseCcs, innerVk)
@@ -123,13 +121,8 @@ func TestNormalCase(t *testing.T) {
 
 func TestNormalCaseSuccint(t *testing.T) {
 
-	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
-	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
-
 	innerField := ecc.BLS24_315.ScalarField()
 	outerField := ecc.BW6_633.ScalarField()
-	//innerField := ecc.BLS12_377.ScalarField()
-	//outerField := ecc.BW6_761.ScalarField()
 	proverOptions := groth16.GetNativeProverOptions(outerField, innerField)
 
 	//issuance txn
@@ -138,7 +131,7 @@ func TestNormalCaseSuccint(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxGenesisBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	innerWitness, err := CreateBaseCaseWitness(fullTxGenesisBytes, genesisTxId, innerField)
+	innerWitness, err := CreateBaseCaseFullWitness(fullTxGenesisBytes, genesisTxId, innerField)
 
 	//innerCcs, innerVK, innerWitness, innerProof :=
 	assert := test.NewAssert(t)
@@ -147,10 +140,6 @@ func TestNormalCaseSuccint(t *testing.T) {
 	assert.NoError(err)
 
 	circuitVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](baseVk)
-	assert.NoError(err)
-	circuitWitness, err := groth16.ValueOfWitness[ScalarField](innerWitness)
-	assert.NoError(err)
-	circuitProof, err := groth16.ValueOfProof[G1Affine, G2Affine](innerProof)
 	assert.NoError(err)
 
 	outerCircuit := &Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
@@ -166,9 +155,9 @@ func TestNormalCaseSuccint(t *testing.T) {
 
 	fullTxBytes, _ := hex.DecodeString("0200000001faf3013aab53ae122e6cfdef7720c7a785fed4ce7f8f3dd19379f31e62651c71000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
 
-	outerAssignment := CreateOuterAssignment(circuitWitness, circuitProof, circuitVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
+	outerAssignment, err := CreateOuterAssignment(innerWitness, innerProof, baseVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
 
-	err = test.IsSolved(outerCircuit, &outerAssignment, outerField)
+	err = test.IsSolved(outerCircuit, outerAssignment, outerField)
 	assert.NoError(err)
 
 	//now follow-up with a first-spend and proof of the previous token

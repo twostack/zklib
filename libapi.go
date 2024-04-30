@@ -25,7 +25,7 @@ doing setup just once, and then repeatedly
 constructing and verifying proofs and
 */
 type BaseProof struct {
-	curveId    ecc.ID
+	CurveId    ecc.ID
 	innerField *big.Int
 	outerField *big.Int
 
@@ -38,15 +38,14 @@ type BaseProof struct {
 }
 
 type NormalProof struct {
-	curveId    ecc.ID
+	CurveId    ecc.ID
 	innerField *big.Int
 	outerField *big.Int
 
 	verifierOptions backend.VerifierOption
 	proverOptions   backend.ProverOption
 
-	ccs      constraint.ConstraintSystem
-	innerCcs constraint.ConstraintSystem
+	Ccs constraint.ConstraintSystem
 
 	VerifyingKey native_groth16.VerifyingKey
 	ProvingKey   native_groth16.ProvingKey
@@ -62,7 +61,7 @@ func NewBaseProof() (*BaseProof, error) {
 	po.outerField = ecc.BW6_633.ScalarField()
 
 	//IMPORTANT: Base proof needs to read the inner field's curveId
-	po.curveId = ecc.BLS24_315
+	po.CurveId = ecc.BLS24_315
 
 	po.verifierOptions = groth16.GetNativeVerifierOptions(po.outerField, po.innerField)
 	po.proverOptions = groth16.GetNativeProverOptions(po.outerField, po.innerField)
@@ -150,7 +149,7 @@ func (po *BaseProof) WriteKeys() error {
 }
 
 func (po *BaseProof) ReadKeys() error {
-	vk, pk, err := readKeys("base_", po.curveId)
+	vk, pk, err := readKeys("base_", po.CurveId)
 
 	if err != nil {
 		return err
@@ -179,7 +178,7 @@ func NewNormalProof(parentCcs constraint.ConstraintSystem, vk native_groth16.Ver
 	po.outerField = ecc.BW6_633.ScalarField()
 
 	//IMPORTANT: Normal proof needs to read the OUTER field's curveId
-	po.curveId = ecc.BW6_633
+	po.CurveId = ecc.BW6_633
 
 	parentVk, err := groth16.ValueOfVerifyingKey[txivc.G1Affine, txivc.G2Affine, txivc.GTEl](vk)
 	if err != nil {
@@ -197,14 +196,14 @@ func NewNormalProof(parentCcs constraint.ConstraintSystem, vk native_groth16.Ver
 		return nil, err
 	}
 
-	po.ccs = innerCcs
+	po.Ccs = innerCcs
 
 	return po, nil
 }
 
 func (po *NormalProof) SetupKeys() error {
 
-	pk, vk, err := native_groth16.Setup(po.ccs)
+	pk, vk, err := native_groth16.Setup(po.Ccs)
 	if err != nil {
 		return err
 	}
@@ -252,7 +251,7 @@ func (po *NormalProof) WriteKeys() error {
 }
 
 func (po *NormalProof) ReadKeys() error {
-	vk, pk, err := readKeys("norm_", po.curveId)
+	vk, pk, err := readKeys("norm_", po.CurveId)
 
 	if err != nil {
 		return err

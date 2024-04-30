@@ -220,7 +220,7 @@ func benchNormalCaseGroth16() {
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := grothivc.CreateBaseCaseWitness(fullTxBytes, genesisTxId, innerField)
+	genesisWitness, err := grothivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId, innerField)
 
 	start = time.Now()
 	genesisProof, err := grothivc.ComputeProof(innerCcs, provingKey, genesisWitness, proverOptions)
@@ -239,8 +239,6 @@ func benchNormalCaseGroth16() {
 	}
 
 	//can create a lightweight witness here for verification
-	innerWitness, err := groth16.ValueOfWitness[grothivc.ScalarField](genesisWitness)
-	innerProof, err := groth16.ValueOfProof[grothivc.G1Affine, grothivc.G2Affine](genesisProof)
 	innerVk, err := groth16.ValueOfVerifyingKey[grothivc.G1Affine, grothivc.G2Affine, grothivc.GTEl](verifyingKey)
 
 	start = time.Now()
@@ -258,8 +256,8 @@ func benchNormalCaseGroth16() {
 	postFixBytes, _ = hex.DecodeString("000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
 	fullTxBytes, _ = hex.DecodeString("0200000001faf3013aab53ae122e6cfdef7720c7a785fed4ce7f8f3dd19379f31e62651c71000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
 
-	outerAssignment := grothivc.CreateOuterAssignment(innerWitness, innerProof, innerVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
-	outerWitness, err := frontend.NewWitness(&outerAssignment, outerField)
+	outerAssignment, err := grothivc.CreateOuterAssignment(genesisWitness, genesisProof, verifyingKey, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
+	outerWitness, err := frontend.NewWitness(outerAssignment, outerField)
 	if err != nil {
 		fmt.Printf("Fail ! %s\n", err)
 		return
