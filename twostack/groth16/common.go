@@ -102,7 +102,7 @@ func CreateBaseCaseFullWitness(
 
 	//copy(innerAssignment.RawTx[:], rawTxBytes)
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
+	//copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 
 	innerWitness, err := frontend.NewWitness(&innerAssignment, innerField)
 	if err != nil {
@@ -116,7 +116,7 @@ func CreateBaseLightWitness(currTxId []byte, innerField *big.Int) (witness.Witne
 
 	//copy(innerAssignment.RawTx[:], rawTxBytes)
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
+	//copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 
 	innerWitness, err := frontend.NewWitness(&innerAssignment, innerField)
 	if err != nil {
@@ -132,7 +132,7 @@ func CreateNormalLightWitness(currTxId []byte, tokenId []byte, innerField *big.I
 
 	//copy(innerAssignment.RawTx[:], rawTxBytes)
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-	copy(innerAssignment.TokenId[:], uints.NewU8Array(tokenId[:])) //base case tokenId == txId
+	//copy(innerAssignment.TokenId[:], uints.NewU8Array(tokenId[:])) //base case tokenId == txId
 
 	innerWitness, err := frontend.NewWitness(&innerAssignment, innerField)
 	if err != nil {
@@ -199,9 +199,9 @@ func CreateOuterAssignment(
 	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(outerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
-	tokenId := [32]byte{}
-	copy(tokenId[:], prevTxnIdBytes)
-	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
+	//tokenId := [32]byte{}
+	//copy(tokenId[:], prevTxnIdBytes)
+	//copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
 
 	return outerAssignment, nil
 }
