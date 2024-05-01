@@ -3,6 +3,7 @@ package txivc
 import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
+	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
@@ -13,14 +14,9 @@ import (
  */
 type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	RawTx []frontend.Variable
-	//CurrTxPrefix [5]uints.U8 //5
-	//PrevTxId     [32]uints.U8
-	//CurrTxPost   [154]uints.U8 //81
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-	TokenId  [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-
 }
 
 /*
@@ -30,9 +26,6 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 
 	uapi, err := uints.New[uints.U32](api)
 
-	//assert that currTxId == hash(prefix || prevTxId || postfix )
-	//fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
-	//fullTx = append(fullTx, circuit.CurrTxPost[:]...)
 	ret := make([]uints.U8, len(circuit.RawTx))
 	for i := range ret {
 		ret[i] = uapi.ByteValueOf(circuit.RawTx[i])
@@ -53,11 +46,6 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
 	}
 
-	//assert that currTxId == TokenId
-	for i := range circuit.CurrTxId {
-		uapi.ByteAssertEq(circuit.TokenId[i], calculatedTxId[i])
-	}
-
 	return nil
 }
 
@@ -65,8 +53,9 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 * General case to continue with proofs
  */
 type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	PreviousProof stdgroth16.Proof[G1El, G2El]
-	PreviousVk    stdgroth16.VerifyingKey[G1El, G2El, GtEl] `gnark:"-"` // constant verification key
+	PreviousProof   stdgroth16.Proof[G1El, G2El]
+	PreviousVk      stdgroth16.VerifyingKey[G1El, G2El, GtEl] `gnark:"-"` // constant verification key
+	PreviousWitness stdgroth16.Witness[FR]
 
 	CurrTxPrefix [5]uints.U8 //5
 	PrevTxId     [32]uints.U8
@@ -74,10 +63,6 @@ type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-	TokenId  [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-
-	//placing Witness at the end so TokenId offset is more easily calculated
-	PreviousWitness stdgroth16.Witness[FR] `gnark:",public"`
 }
 
 func isNullArray(arr []uints.U8) bool {
@@ -93,8 +78,15 @@ func isNullArray(arr []uints.U8) bool {
 
 func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
-	//assert that the token ID is being preserved
 	uapi, err := uints.New[uints.U32](api)
+
+	field, err := emulated.NewField[FR](api)
+	for i := range circuit.CurrTxId {
+		//assert that the previous txn id matches that of the current outpoint
+		witnessTxIdBits := field.ToBits(&circuit.PreviousWitness.Public[i])
+		witnessTxId := bits.FromBinary(api, witnessTxIdBits)
+		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxId))
+	}
 
 	//reconstitute the transaction hex
 	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
