@@ -17,7 +17,6 @@ type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2E
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-
 }
 
 /*
@@ -47,11 +46,6 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
 	}
 
-	////assert that currTxId == TokenId
-	//for i := range circuit.CurrTxId {
-	//	uapi.ByteAssertEq(circuit.TokenId[i], calculatedTxId[i])
-	//}
-
 	return nil
 }
 
@@ -69,18 +63,6 @@ type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-
-}
-
-func isNullArray(arr []uints.U8) bool {
-	zeroVal := uints.NewU8(0)
-	for i := range arr {
-		if arr[i] != zeroVal {
-			return false
-		}
-	}
-
-	return true
 }
 
 func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
@@ -88,11 +70,11 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 	uapi, err := uints.New[uints.U32](api)
 	field, err := emulated.NewField[FR](api)
 
-	for i := range circuit.PrevTxId {
-		//assert that the prevTxId points to the txId of the previous Txn
-		innerBits := field.ToBits(&circuit.PreviousWitness.Public[i])
-		innerVal := bits.FromBinary(api, innerBits)
-		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(innerVal))
+	for i := range circuit.CurrTxId {
+		//assert that the previous txn id matches that of the current outpoint
+		witnessTxIdBits := field.ToBits(&circuit.PreviousWitness.Public[i])
+		witnessTxId := bits.FromBinary(api, witnessTxIdBits)
+		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxId))
 	}
 
 	//reconstitute the transaction hex

@@ -128,7 +128,7 @@ func (po *BaseProof) CreateBaseCaseWitness(
 	}
 	//copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTxBytes))
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
+	//copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 
 	innerWitness, err := frontend.NewWitness(&innerAssignment, po.innerField)
 
@@ -234,9 +234,9 @@ func (po *NormalProof) CreateOuterAssignment(
 	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 	copy(outerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
-	tokenId := [32]byte{}
-	copy(tokenId[:], prevTxnIdBytes)
-	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
+	//tokenId := [32]byte{}
+	//copy(tokenId[:], prevTxnIdBytes)
+	//copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
 
 	return outerAssignment
 }

@@ -14,13 +14,13 @@ import (
 Base case to generate initial proof to get things started
 */
 type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	CurrTxPrefix [5]uints.U8 //5
-	PrevTxId     [32]uints.U8
-	CurrTxPost   [154]uints.U8 //81
+	//CurrTxPrefix [5]uints.U8 //5
+	//PrevTxId     [32]uints.U8
+	//CurrTxPost   [154]uints.U8 //81
+	RawTx []uints.U8 `gnark:",public"`
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-	TokenId  [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 
 }
 
@@ -32,12 +32,8 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 
 	uapi, err := uints.New[uints.U32](api)
 
-	//assert that currTxId == hash(prefix || prevTxId || postfix )
-	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
-	fullTx = append(fullTx, circuit.CurrTxPost[:]...)
-
 	//do double-sha256
-	firstHash, err := calculateSha256(api, fullTx)
+	firstHash, err := calculateSha256(api, circuit.RawTx)
 	if err != nil {
 		return err
 	}
@@ -49,11 +45,6 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 	//assert current public input matches calculated txId
 	for i := range circuit.CurrTxId {
 		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
-	}
-
-	//assert that currTxId == TokenId
-	for i := range circuit.CurrTxId {
-		uapi.ByteAssertEq(circuit.TokenId[i], calculatedTxId[i])
 	}
 
 	return nil

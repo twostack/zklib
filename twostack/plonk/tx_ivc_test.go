@@ -3,6 +3,7 @@ package txivc
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
@@ -10,6 +11,7 @@ import (
 	"github.com/consensys/gnark/std/recursion/plonk"
 	"github.com/consensys/gnark/test"
 	"testing"
+	"time"
 )
 
 func TestBaseCase(t *testing.T) {
@@ -19,15 +21,16 @@ func TestBaseCase(t *testing.T) {
 	innerField := ecc.BLS12_377.ScalarField()
 	outerField := ecc.BLS12_377.ScalarField()
 
-	innerCcs, provingKey, verifyingKey, err := SetupBaseCase(innerField)
+	fullTxBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
+
+	innerCcs, provingKey, verifyingKey, err := SetupBaseCase(len(fullTxBytes), innerField)
 	if err != nil {
 		panic(err)
 	}
 
-	fullTxBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
-	prefixBytes, _ := hex.DecodeString("0200000001")
-	prevTxnIdBytes, _ := hex.DecodeString("90bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7")
-	postFixBytes, _ := hex.DecodeString("000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
+	//prefixBytes, _ := hex.DecodeString("0200000001")
+	//prevTxnIdBytes, _ := hex.DecodeString("90bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7")
+	//postFixBytes, _ := hex.DecodeString("000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
@@ -35,10 +38,14 @@ func TestBaseCase(t *testing.T) {
 	//fmt.Println(hex.EncodeToString(genesisTxId[:]))
 	// create full genesis witness (placeholders, prevTxnIdBytes is empty
 	//vk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](verifyingKey)
-	genesisWitness, err := CreateBaseCaseWitness(prefixBytes, postFixBytes, prevTxnIdBytes, genesisTxId)
-
+	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, genesisTxId)
 	assert.NoError(err)
+
+	start := time.Now()
+
 	genesisProof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
+	elapsed := time.Since(start)
+	fmt.Printf("Prover took %s\n to complete", elapsed)
 
 	//verify the genesis proof
 	assert.NoError(err)
@@ -61,8 +68,8 @@ func TestNormalCase(t *testing.T) {
 	prevTxnIdBytes, _ := hex.DecodeString("90bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7")
 	postFixBytes, _ := hex.DecodeString("000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 
-	baseCcs, basePk, baseVk, err := SetupBaseCase(innerField)
-	genesisWitness, genesisProof, err := CreateBaseCaseProof(fullTxBytes, prefixBytes, prevTxnIdBytes, postFixBytes, baseCcs, basePk)
+	baseCcs, basePk, baseVk, err := SetupBaseCase(len(fullTxBytes), innerField)
+	genesisWitness, genesisProof, err := CreateBaseCaseProof(fullTxBytes, baseCcs, basePk)
 
 	//can create a lightweight witness here for verification
 	//err := native_plonk.Verify(genesisProof, verifyingKey, genesisWitness, plonk.GetNativeVerifierOptions(outerField, innerField))
@@ -111,14 +118,14 @@ func TestNormalCaseSuccint(t *testing.T) {
 
 	//issuance txn
 	fullTxGenesisBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
-	prefixGenesisBytes, _ := hex.DecodeString("0200000001")
-	prevTxnIdGenesisBytes, _ := hex.DecodeString("90bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7")
-	postFixGenesisBytes, _ := hex.DecodeString("000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
+	//prefixGenesisBytes, _ := hex.DecodeString("0200000001")
+	//prevTxnIdGenesisBytes, _ := hex.DecodeString("90bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7")
+	//postFixGenesisBytes, _ := hex.DecodeString("000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 
 	//innerCcs, innerVK, innerWitness, innerProof :=
 	assert := test.NewAssert(t)
-	baseCcs, basePk, baseVk, err := SetupBaseCase(innerField)
-	innerWitness, innerProof, err := CreateBaseCaseProof(fullTxGenesisBytes, prefixGenesisBytes, prevTxnIdGenesisBytes, postFixGenesisBytes, baseCcs, basePk)
+	baseCcs, basePk, baseVk, err := SetupBaseCase(len(fullTxGenesisBytes), innerField)
+	innerWitness, innerProof, err := CreateBaseCaseProof(fullTxGenesisBytes, baseCcs, basePk)
 	if err != nil {
 		panic(err)
 	}
