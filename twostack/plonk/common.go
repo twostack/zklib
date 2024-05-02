@@ -63,7 +63,7 @@ func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem,
 	return innerCcs, innerPK, innerVK, nil
 }
 
-func CreateBaseCaseProof(fullTxBytes []byte, prefixBytes []byte, prevTxnIdBytes []byte, postfixBytes []byte, innerCcs constraint.ConstraintSystem, provingKey native_plonk.ProvingKey) (
+func CreateBaseCaseProof(fullTxBytes []byte, innerCcs constraint.ConstraintSystem, provingKey native_plonk.ProvingKey) (
 	witness.Witness,
 	native_plonk.Proof,
 	error,
@@ -80,7 +80,7 @@ func CreateBaseCaseProof(fullTxBytes []byte, prefixBytes []byte, prevTxnIdBytes 
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := CreateBaseCaseWitness(prefixBytes, postfixBytes, prevTxnIdBytes, genesisTxId)
+	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, genesisTxId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,20 +91,15 @@ func CreateBaseCaseProof(fullTxBytes []byte, prefixBytes []byte, prevTxnIdBytes 
 }
 
 func CreateBaseCaseWitness(
-	prefixBytes []byte,
-	postFixBytes []byte,
-	prevTxnIdBytes []byte,
+	rawTx []byte,
 	currTxId [32]byte,
 ) (witness.Witness, error) {
 
 	innerAssignment := Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}
 
 	//assign the current Txn data
-	copy(innerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
-	copy(innerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
-	copy(innerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTx[:]))
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-	copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 
 	innerWitness, err := frontend.NewWitness(&innerAssignment, ecc.BLS12_377.ScalarField())
 	if err != nil {

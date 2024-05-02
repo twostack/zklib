@@ -133,7 +133,7 @@ func benchNormalCasePlonk() {
 
 	//setup circuit params
 	start := time.Now()
-	innerCcs, provingKey, verifyingKey, err := plonkivc.SetupBaseCase(innerField)
+	innerCcs, provingKey, verifyingKey, err := plonkivc.SetupBaseCase(len(fullTxBytes), innerField)
 	elapsed := time.Since(start)
 	fmt.Printf("Base case setup: %s\n", elapsed)
 
@@ -152,7 +152,7 @@ func benchNormalCasePlonk() {
 		return
 	}
 	start = time.Now()
-	genesisWitness, genesisProof, err := plonkivc.CreateBaseCaseProof(fullTxBytes, prefixBytes, prevTxnIdBytes, postFixBytes, innerCcs, provingKey)
+	genesisWitness, genesisProof, err := plonkivc.CreateBaseCaseProof(fullTxBytes, innerCcs, provingKey)
 	elapsed = time.Since(start)
 	fmt.Printf("Base case proof created: %s\n", elapsed)
 
