@@ -17,7 +17,7 @@ type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2E
 	//CurrTxPrefix [5]uints.U8 //5
 	//PrevTxId     [32]uints.U8
 	//CurrTxPost   [154]uints.U8 //81
-	RawTx []uints.U8
+	RawTx []uints.U8 `gnark:",public"`
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space

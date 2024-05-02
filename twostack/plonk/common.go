@@ -6,6 +6,7 @@ import (
 	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
+	cs "github.com/consensys/gnark/constraint/bls12-377"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
@@ -15,16 +16,19 @@ import (
 	"math/big"
 )
 
-func SetupBaseCase(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
+func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
 
 	baseCcs, err := frontend.Compile(innerField, scs.NewBuilder,
-		&Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
+		&Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+			RawTx: make([]uints.U8, txSize),
+		})
 
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	srs, srsLagrange, err := unsafekzg.NewSRS(baseCcs)
+	scsConstraint := baseCcs.(*cs.SparseR1CS)
+	srs, srsLagrange, err := unsafekzg.NewSRS(scsConstraint)
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -95,7 +99,9 @@ func CreateBaseCaseWitness(
 	currTxId [32]byte,
 ) (witness.Witness, error) {
 
-	innerAssignment := Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{}
+	innerAssignment := Sha256CircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		RawTx: make([]uints.U8, len(rawTx)),
+	}
 
 	//assign the current Txn data
 	copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTx[:]))
