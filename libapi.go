@@ -1,7 +1,12 @@
 package zklib
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
@@ -12,12 +17,17 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/recursion/groth16"
+	"github.com/libsv/go-bt"
 	txivc "github.com/twostack/zklib/twostack/groth16"
+	"io"
 	"log"
 	"math/big"
 	"os"
 	"time"
 )
+
+var baseProof *BaseProof
+var normalProof *NormalProof
 
 /*
 PreviousProof object to encapsulate the behaviour of
@@ -25,9 +35,9 @@ doing setup just once, and then repeatedly
 constructing and verifying proofs and
 */
 type BaseProof struct {
-	curveId    ecc.ID
-	innerField *big.Int
-	outerField *big.Int
+	CurveId    ecc.ID
+	InnerField *big.Int
+	OuterField *big.Int
 
 	verifierOptions backend.VerifierOption
 	proverOptions   backend.ProverOption
@@ -38,14 +48,14 @@ type BaseProof struct {
 }
 
 type NormalProof struct {
-	curveId    ecc.ID
-	innerField *big.Int
-	outerField *big.Int
+	CurveId    ecc.ID
+	InnerField *big.Int
+	OuterField *big.Int
 
 	verifierOptions backend.VerifierOption
 	proverOptions   backend.ProverOption
 
-	ccs      constraint.ConstraintSystem
+	Ccs      constraint.ConstraintSystem
 	innerCcs constraint.ConstraintSystem
 
 	VerifyingKey native_groth16.VerifyingKey
@@ -54,21 +64,24 @@ type NormalProof struct {
 	ParentVerifyingKey native_groth16.VerifyingKey
 }
 
-func NewBaseProof() (*BaseProof, error) {
+func NewBaseProof(baseTxSize int) (*BaseProof, error) {
 
 	po := &BaseProof{}
 
-	po.innerField = ecc.BLS24_315.ScalarField()
-	po.outerField = ecc.BW6_633.ScalarField()
+	po.InnerField = txivc.InnerCurve.ScalarField()
+	po.OuterField = txivc.OuterCurve.ScalarField()
 
 	//IMPORTANT: Base proof needs to read the inner field's curveId
-	po.curveId = ecc.BLS24_315
+	po.CurveId = txivc.InnerCurve
 
-	po.verifierOptions = groth16.GetNativeVerifierOptions(po.outerField, po.innerField)
-	po.proverOptions = groth16.GetNativeProverOptions(po.outerField, po.innerField)
+	po.verifierOptions = groth16.GetNativeVerifierOptions(po.OuterField, po.InnerField)
+	po.proverOptions = groth16.GetNativeProverOptions(po.OuterField, po.InnerField)
 
-	ccs, err := frontend.Compile(po.innerField, r1cs.NewBuilder,
-		&txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{})
+	baseTxCircuit := &txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
+		RawTx: make([]frontend.Variable, baseTxSize),
+	}
+
+	ccs, err := frontend.Compile(po.InnerField, r1cs.NewBuilder, baseTxCircuit)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +144,7 @@ func (po *BaseProof) CreateBaseCaseWitness(
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	//copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 
-	innerWitness, err := frontend.NewWitness(&innerAssignment, po.innerField)
+	innerWitness, err := frontend.NewWitness(&innerAssignment, po.InnerField)
 
 	if err != nil {
 		return nil, err
@@ -150,7 +163,7 @@ func (po *BaseProof) WriteKeys() error {
 }
 
 func (po *BaseProof) ReadKeys() error {
-	vk, pk, err := readKeys("base_", po.curveId)
+	vk, pk, err := readKeys("base_", po.CurveId)
 
 	if err != nil {
 		return err
@@ -172,21 +185,21 @@ func NewNormalProof(parentCcs constraint.ConstraintSystem, vk native_groth16.Ver
 
 	po := &NormalProof{}
 
-	po.verifierOptions = groth16.GetNativeVerifierOptions(po.outerField, po.innerField)
-	po.proverOptions = groth16.GetNativeProverOptions(po.outerField, po.innerField)
+	po.verifierOptions = groth16.GetNativeVerifierOptions(po.OuterField, po.InnerField)
+	po.proverOptions = groth16.GetNativeProverOptions(po.OuterField, po.InnerField)
 
-	po.innerField = ecc.BLS24_315.ScalarField()
-	po.outerField = ecc.BW6_633.ScalarField()
+	po.InnerField = txivc.InnerCurve.ScalarField()
+	po.OuterField = txivc.OuterCurve.ScalarField()
 
 	//IMPORTANT: Normal proof needs to read the OUTER field's curveId
-	po.curveId = ecc.BW6_633
+	po.CurveId = txivc.OuterCurve
 
 	parentVk, err := groth16.ValueOfVerifyingKey[txivc.G1Affine, txivc.G2Affine, txivc.GTEl](vk)
 	if err != nil {
 		return nil, err
 	}
 
-	innerCcs, err := frontend.Compile(po.outerField, r1cs.NewBuilder,
+	innerCcs, err := frontend.Compile(po.OuterField, r1cs.NewBuilder,
 		&txivc.Sha256Circuit[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
 			PreviousProof:   groth16.PlaceholderProof[txivc.G1Affine, txivc.G2Affine](parentCcs),
 			PreviousVk:      parentVk,
@@ -197,14 +210,14 @@ func NewNormalProof(parentCcs constraint.ConstraintSystem, vk native_groth16.Ver
 		return nil, err
 	}
 
-	po.ccs = innerCcs
+	po.Ccs = innerCcs
 
 	return po, nil
 }
 
 func (po *NormalProof) SetupKeys() error {
 
-	pk, vk, err := native_groth16.Setup(po.ccs)
+	pk, vk, err := native_groth16.Setup(po.Ccs)
 	if err != nil {
 		return err
 	}
@@ -252,7 +265,7 @@ func (po *NormalProof) WriteKeys() error {
 }
 
 func (po *NormalProof) ReadKeys() error {
-	vk, pk, err := readKeys("norm_", po.curveId)
+	vk, pk, err := readKeys("norm_", po.CurveId)
 
 	if err != nil {
 		return err
@@ -330,4 +343,263 @@ func readKeys(prefix string, curveId ecc.ID) (native_groth16.VerifyingKey, nativ
 	fmt.Printf("Importing Proving Key took : %s\n", end)
 
 	return innerVK, innerPK, nil
+}
+
+func CreateNormalCaseProof(normalInfo *txivc.NormalProofInfo) (string, error) {
+	//outerAssignment := normalProof.CreateOuterAssignment()
+
+	var ccs constraint.ConstraintSystem
+	var innerVk native_groth16.VerifyingKey
+
+	var innerWitness witness.Witness
+	var innerProof native_groth16.Proof
+
+	fullTxBytes, err := hex.DecodeString(normalInfo.RawTx)
+	if err != nil {
+		return "", err
+	}
+
+	prefixBytes, prevTxnId, postfixBytes, err := SliceTx(fullTxBytes, normalInfo.InputIndex)
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	currTxId := sha256.Sum256(firstHash[:])
+
+	//initialize params based on whether our previous txn was a base case of normal case
+	if normalInfo.IsParentBase {
+		ccs = baseProof.Ccs
+		innerVk = baseProof.VerifyingKey
+		innerProof = native_groth16.NewProof(baseProof.CurveId)
+		innerWitness, err = txivc.CreateBaseCaseLightWitness(currTxId[:], normalProof.InnerField)
+		if err != nil {
+			return "", err
+		}
+
+	} else {
+		ccs = normalProof.Ccs
+		innerVk = normalProof.VerifyingKey
+		innerProof = native_groth16.NewProof(normalProof.CurveId)
+		innerWitness, err = txivc.CreateNormalLightWitness(currTxId[:], normalProof.InnerField)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	normalWitness, err := txivc.CreateNormalFullWitness(
+		innerWitness,
+		innerProof,
+		innerVk,
+		prefixBytes,
+		prevTxnId,
+		postfixBytes,
+		fullTxBytes,
+		normalProof.OuterField,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	var innerProofBytes = []byte(normalInfo.Proof)
+	err = json.Unmarshal(innerProofBytes, &innerProof)
+	if err != nil {
+		//log.Error().Msg(fmt.Sprintf("Error unmarshalling proof : [%s]\n", err.Error()))
+		return "", err
+	}
+
+	resultProof, err := txivc.ComputeProof(&ccs, &normalProof.ProvingKey, normalWitness)
+	if err != nil {
+		//log.Error().Msg(fmt.Sprintf("Error computing proof : [%s]\n", err.Error()))
+		return "", err
+	}
+
+	jsonBytes, err := json.Marshal(resultProof)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonBytes), nil
+}
+
+var BASE_RAW_TX_SIZE = 191
+
+func bootBaseProof() (*BaseProof, error) {
+
+	baseProof, err := NewBaseProof(BASE_RAW_TX_SIZE)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := os.Stat("base_pk.cbor"); errors.Is(err, os.ErrNotExist) {
+		err = baseProof.SetupKeys()
+		if err != nil {
+			return nil, err
+		}
+		err = baseProof.WriteKeys()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err = baseProof.ReadKeys()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return baseProof, nil
+}
+
+func bootNormalProof(baseProof *BaseProof) (*NormalProof, error) {
+
+	normalProof, err := NewNormalProof(baseProof.Ccs, baseProof.VerifyingKey)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := os.Stat("normal_pk.cbor"); errors.Is(err, os.ErrNotExist) {
+		err = normalProof.SetupKeys()
+		if err != nil {
+			return nil, err
+		}
+		err = normalProof.WriteKeys()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err = normalProof.ReadKeys()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return normalProof, nil
+}
+
+func BootProofSystem() {
+
+	fmt.Println("Booting base case proof system. This will take around 1 minute")
+	bp, err := bootBaseProof()
+	if err != nil {
+		fmt.Printf("Failed to bootstrap basecase proof system.Aborting: %s\n", err)
+		return
+	}
+	baseProof = bp
+
+	//bootstrap the normal case proof system
+	fmt.Println("Booting normal case proof system. This will take around 1 minute")
+	np, err := bootNormalProof(baseProof)
+	if err != nil {
+		fmt.Printf("Failed to bootstrap normalcase proof system.Aborting: %s\n", err)
+		return
+	}
+	normalProof = np
+}
+
+/**
+TX UTIL. Slicer
+*/
+
+/*
+Split a Raw Transaction into it's component "prefix", "suffix" and "postfix" parts
+
+inputIndex - the index of the input that
+*/
+func SliceTx(rawTx []byte, inputIndex int) ([]byte, []byte, []byte, error) {
+
+	//tx, err := bt.NewTxFromBytes(rawTx)
+
+	reader := bytes.NewReader(rawTx)
+
+	txIdStart, postfixStart, err := getOffSets(uint64(inputIndex), reader)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return rawTx[0:txIdStart], rawTx[txIdStart : txIdStart+32], rawTx[postfixStart:len(rawTx)], nil
+
+}
+
+func getOffSets(inputIndex uint64, r io.Reader) (int, int, error) {
+	t := bt.Tx{}
+
+	version := make([]byte, 4)
+	if n, err := io.ReadFull(r, version); n != 4 || err != nil {
+		return 0, 0, err
+	}
+	t.Version = binary.LittleEndian.Uint32(version)
+
+	var err error
+
+	inputCount, _, err := bt.DecodeVarIntFromReader(r)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if inputCount < inputIndex+1 {
+		return 0, 0, fmt.Errorf("Input index is outside of the range of [%d] available inputs", inputCount)
+	}
+
+	inputCountSize := len(bt.VarInt(inputCount))
+
+	txIdOffSet := 4 + inputCountSize //version + numInput bytes
+
+	// create Inputs
+	var i uint64 = 0
+	var input *bt.Input
+
+	//read up to input # inputIndex
+
+	for ; i < inputIndex; i++ {
+		input, err = bt.NewInputFromReader(r)
+		if err != nil {
+			return 0, 0, err
+		}
+		t.Inputs = append(t.Inputs, input)
+	}
+
+	//get the size of inputs read so far
+	var inputSize int = 0
+	for _, input := range t.Inputs {
+		inputSize = inputSize + len(input.ToBytes(false))
+	}
+
+	//since the first entry of the next input is the txid we want
+	txIdOffSet = txIdOffSet + inputSize
+
+	postfixStart := txIdOffSet + 32
+
+	return txIdOffSet, postfixStart, nil
+
+}
+
+/*
+func CreateBaseCaseProof(proverOptions backend.ProverOption, innerCcs constraint.ConstraintSystem, genesisWitness witness.Witness, provingKey native_groth16.ProvingKey) (
+	native_groth16.Proof,
+	error,
+) {
+	return native_groth16.Prove(innerCcs, provingKey, genesisWitness, proverOptions)
+}
+*/
+
+func CreateBaseCaseProof(pInfo *txivc.BaseProofInfo) (string, error) {
+
+	fullTxBytes, _ := hex.DecodeString(pInfo.RawTx)
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	genesisTxId := sha256.Sum256(firstHash[:])
+
+	genesisWitness, err := txivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId)
+
+	if err != nil {
+		return "", err
+	}
+	genesisProof, err := txivc.ComputeProof(&baseProof.Ccs, &baseProof.ProvingKey, genesisWitness)
+
+	jsonBytes, err := json.Marshal(genesisProof)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonBytes), nil
 }

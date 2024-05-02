@@ -38,7 +38,7 @@ func TestBaseCase(t *testing.T) {
 	//fmt.Println(hex.EncodeToString(genesisTxId[:]))
 	// create full genesis witness (placeholders, prevTxnIdBytes is empty
 	//vk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](verifyingKey)
-	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, genesisTxId, innerField)
+	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, genesisTxId)
 
 	start = time.Now()
 	assert.NoError(err)
@@ -74,7 +74,7 @@ func TestNormalCase(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := CreateBaseCaseWitness(fullTxBytes, genesisTxId, innerField)
+	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, genesisTxId)
 
 	start = time.Now()
 	genesisProof, err := CreateBaseCaseProof(proverOptions, baseCcs, genesisWitness, basePk)
@@ -144,7 +144,7 @@ func TestNormalCaseSuccint(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxGenesisBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	innerWitness, err := CreateBaseCaseWitness(fullTxGenesisBytes, genesisTxId, innerField)
+	innerWitness, err := CreateBaseCaseFullWitness(fullTxGenesisBytes, genesisTxId)
 
 	//innerCcs, innerVK, innerWitness, innerProof :=
 	assert := test.NewAssert(t)
