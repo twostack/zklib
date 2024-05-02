@@ -1,7 +1,6 @@
 package txivc
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
@@ -138,13 +137,13 @@ func CreateNormalFullWitness(
 	innerWitness witness.Witness,
 	innerProof native_groth16.Proof,
 	innerVk native_groth16.VerifyingKey,
-	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, fullTxBytes []byte, field *big.Int) (witness.Witness, error) {
+	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, currTxId []byte, field *big.Int) (witness.Witness, error) {
 
 	circuitVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](innerVk)
 	circuitWitness, err := groth16.ValueOfWitness[ScalarField](innerWitness)
 	circuitProof, err := groth16.ValueOfProof[G1Affine, G2Affine](innerProof)
 
-	outerAssignment := CreateOuterAssignment(circuitWitness, circuitProof, circuitVk, prefixBytes, prevTxnIdBytes, postFixBytes, fullTxBytes)
+	outerAssignment := CreateOuterAssignment(circuitWitness, circuitProof, circuitVk, prefixBytes, prevTxnIdBytes, postFixBytes, currTxId)
 	fullWitness, err := frontend.NewWitness(&outerAssignment, field)
 
 	if err != nil {
@@ -178,16 +177,13 @@ func CreateOuterAssignment(
 	circuitWitness groth16.Witness[ScalarField],
 	circuitProof groth16.Proof[G1Affine, G2Affine],
 	verifyingKey groth16.VerifyingKey[G1Affine, G2Affine, GTEl],
-	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, fullTxBytes []byte) Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl] {
+	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, currTxId []byte) Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl] {
 
 	outerAssignment := Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
 		PreviousWitness: circuitWitness,
 		PreviousProof:   circuitProof,
 		PreviousVk:      verifyingKey,
 	}
-
-	firstHash := sha256.Sum256(fullTxBytes)
-	currTxId := sha256.Sum256(firstHash[:])
 
 	copy(outerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
 	copy(outerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
