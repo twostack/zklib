@@ -70,12 +70,11 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 	return baseCcs, innerPK, innerVK, nil
 }
 
-func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem, parentVk groth16.VerifyingKey[G1Affine, G2Affine, GTEl]) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	innerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
 		&Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
 			PreviousProof:   groth16.PlaceholderProof[G1Affine, G2Affine](parentCcs),
-			PreviousVk:      parentVk,
 			PreviousWitness: groth16.PlaceholderWitness[ScalarField](parentCcs),
 		})
 
@@ -157,7 +156,7 @@ func CreateNormalFullWitness(
 *
 Light witness is used for verification of an existing proof. I.e. only public params are filled.
 */
-func CreateNormalLightWitness(currTxId []byte, field *big.Int) (witness.Witness, error) {
+func CreateNormalLightWitness(currTxId []byte, field *big.Int) (*witness.Witness, error) {
 
 	outerAssignment := Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{}
 
@@ -169,7 +168,7 @@ func CreateNormalLightWitness(currTxId []byte, field *big.Int) (witness.Witness,
 		return nil, err
 	}
 
-	return lightWitness, nil
+	return &lightWitness, nil
 
 }
 

@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func TestComputeProof(t *testing.T) {
+func TestComputeBaseProof(t *testing.T) {
 
 	assert := test.NewAssert(t)
 

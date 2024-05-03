@@ -42,7 +42,7 @@ func NewBaseProof(baseTxSize int) (*BaseProof, error) {
 	po.verifierOptions = groth16.GetNativeVerifierOptions(po.OuterField, po.InnerField)
 	po.proverOptions = groth16.GetNativeProverOptions(po.OuterField, po.InnerField)
 
-	baseCcs, provingKey, verifyingKey, err := readSetupParams(baseTxSize, po.InnerField, po.CurveId)
+	baseCcs, provingKey, verifyingKey, err := po.readSetupParams(baseTxSize, po.InnerField, po.CurveId)
 
 	//ccs, err := frontend.Compile(po.InnerField, r1cs.NewBuilder, baseTxCircuit)
 	if err != nil {
@@ -56,7 +56,7 @@ func NewBaseProof(baseTxSize int) (*BaseProof, error) {
 	return po, nil
 }
 
-func readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("base_2_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
@@ -78,7 +78,7 @@ func readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (constrain
 	} else {
 
 		//in this portion we don't run Setup() again, because that generates different keys
-		baseCcs, err := readCircuitParams()
+		baseCcs, err := po.readCircuitParams()
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -92,7 +92,7 @@ func readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (constrain
 	}
 }
 
-func readCircuitParams() (constraint.ConstraintSystem, error) {
+func (po *BaseProof) readCircuitParams() (constraint.ConstraintSystem, error) {
 
 	baseCcs := native_groth16.NewCS(txivc.InnerCurve)
 
@@ -167,6 +167,10 @@ func (po *BaseProof) CreateBaseCaseWitness(
 		return nil, err
 	}
 	return innerWitness, nil
+}
+
+func (po *BaseProof) CreateLightWitness(genesisTxId []byte) (*witness.Witness, error) {
+	return txivc.CreateBaseCaseLightWitness(genesisTxId, po.InnerField)
 }
 
 // generate innerVK, innerPK, compiled circuit and save to disk

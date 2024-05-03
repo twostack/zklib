@@ -3,7 +3,6 @@ package zklib
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
@@ -178,25 +177,9 @@ func BootBaseProof(baseTxSize int) (*BaseProof, error) {
 
 func bootNormalProof(baseProof *BaseProof) (*NormalProof, error) {
 
-	normalProof, err := NewNormalProof(baseProof.Ccs, baseProof.VerifyingKey)
+	normalProof, err := NewNormalProof(baseProof)
 	if err != nil {
 		return nil, err
-	}
-
-	if _, err := os.Stat("norm_pk.cbor"); errors.Is(err, os.ErrNotExist) {
-		err = normalProof.SetupKeys()
-		if err != nil {
-			return nil, err
-		}
-		err = normalProof.WriteKeys()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		err = normalProof.ReadKeys()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return normalProof, nil
