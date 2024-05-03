@@ -93,7 +93,7 @@ func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem,
 func CreateBaseCaseLightWitness(
 	currTxId []byte,
 	innerField *big.Int,
-) (witness.Witness, error) {
+) (*witness.Witness, error) {
 
 	innerAssignment := Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{}
 
@@ -103,7 +103,7 @@ func CreateBaseCaseLightWitness(
 	if err != nil {
 		return nil, err
 	}
-	return innerWitness, nil
+	return &innerWitness, nil
 }
 
 func CreateBaseCaseFullWitness(
