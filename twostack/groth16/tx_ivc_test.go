@@ -116,7 +116,7 @@ func TestNormalCase(t *testing.T) {
 	outerWitness, err := frontend.NewWitness(&outerAssignment, outerField)
 
 	start = time.Now()
-	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(outerField, baseCcs)
+	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(outerField, baseCcs, baseVk)
 	end = time.Since(start)
 	fmt.Printf("Normal case setup took : %s\n", end)
 	assert.NoError(err)

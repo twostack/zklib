@@ -70,20 +70,29 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 	return baseCcs, innerPK, innerVK, nil
 }
 
-func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem, parentVk native_groth16.VerifyingKey) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+
+	previousVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](parentVk)
+	if err != nil {
+		fmt.Printf("Error compile normal circuit : %s", err)
+		return nil, nil, nil, err
+	}
 
 	innerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
 		&Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
 			PreviousProof:   groth16.PlaceholderProof[G1Affine, G2Affine](parentCcs),
+			PreviousVk:      previousVk,
 			PreviousWitness: groth16.PlaceholderWitness[ScalarField](parentCcs),
 		})
 
 	if err != nil {
+		fmt.Printf("Error compile normal circuit : %s", err)
 		return nil, nil, nil, err
 	}
 
 	innerPK, innerVK, err := native_groth16.Setup(innerCcs)
 	if err != nil {
+		fmt.Printf("Error during setup of normal circuit : %s", err)
 		return nil, nil, nil, err
 	}
 	return innerCcs, innerPK, innerVK, nil

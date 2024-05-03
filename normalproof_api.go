@@ -48,7 +48,7 @@ func NewNormalProof(baseProof *BaseProof) (*NormalProof, error) {
 	po.verifierOptions = groth16.GetNativeVerifierOptions(po.OuterField, po.InnerField)
 	po.proverOptions = groth16.GetNativeProverOptions(po.OuterField, po.InnerField)
 
-	normalCcs, provingKey, verifyingKey, err := po.readSetupParams(po.InnerField, po.CurveId)
+	normalCcs, provingKey, verifyingKey, err := po.readSetupParams(po.OuterField, po.CurveId)
 
 	if err != nil {
 		return nil, err
@@ -144,10 +144,13 @@ func (po *NormalProof) ReadKeys() error {
 
 func (po *NormalProof) readSetupParams(outerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
-	if _, err := os.Stat("normal_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		//setup normal case for base parent VK
-		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *po.BaseProofObj.Ccs)
+		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *(po.BaseProofObj).Ccs, *(po.BaseProofObj).VerifyingKey)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 
 		//FIXME:
 		//normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *normalCcs)
