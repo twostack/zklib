@@ -153,11 +153,11 @@ func (ps *ProofSystem) setupBaseCase(baseTxSize int) error {
 
 func (ps *ProofSystem) readBaseParams(txSize int, innerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
-	if _, err := os.Stat("base_2_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat("base_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		baseCcs, provingKey, verifyingKey, err := txivc.SetupBaseCase(txSize, innerField)
 
-		baseccsFile, err := os.Create("base_2_ccs.cbor")
+		baseccsFile, err := os.Create("base_ccs.cbor")
 		_, err = baseCcs.WriteTo(baseccsFile)
 		if err != nil {
 			return nil, nil, nil, err
