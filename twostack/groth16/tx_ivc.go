@@ -73,8 +73,8 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 	for i := range circuit.CurrTxId {
 		//assert that the previous txn id (in witness) matches that of the current outpoint (in prevTxnId)
 		witnessTxIdBits := field.ToBits(&circuit.PreviousWitness.Public[i])
-		witnessTxId := bits.FromBinary(api, witnessTxIdBits)
-		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxId))
+		witnessTxIdByte := bits.FromBinary(api, witnessTxIdBits)
+		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxIdByte))
 	}
 
 	//reconstitute the transaction hex
