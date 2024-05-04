@@ -8,7 +8,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls24315"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	"math/big"
@@ -24,18 +24,21 @@ type NormalProofInfo struct {
 	Proof        string `json:"proof" binding:"required"`
 }
 
-//type ScalarField = sw_bls12377.ScalarField
-//type G1Affine = sw_bls12377.G1Affine
-//type G2Affine = sw_bls12377.G2Affine
-//type GTEl = sw_bls12377.GT
+var InnerCurve = ecc.BLS12_377
+var OuterCurve = ecc.BW6_761
 
-var InnerCurve = ecc.BLS24_315
-var OuterCurve = ecc.BW6_633
+type ScalarField = sw_bls12377.ScalarField
+type G1Affine = sw_bls12377.G1Affine
+type G2Affine = sw_bls12377.G2Affine
+type GTEl = sw_bls12377.GT
 
-type ScalarField = sw_bls24315.ScalarField
-type G1Affine = sw_bls24315.G1Affine
-type G2Affine = sw_bls24315.G2Affine
-type GTEl = sw_bls24315.GT
+//var InnerCurve = ecc.BLS24_315
+//var OuterCurve = ecc.BW6_633
+
+//type ScalarField = sw_bls24315.ScalarField
+//type G1Affine = sw_bls24315.G1Affine
+//type G2Affine = sw_bls24315.G2Affine
+//type GTEl = sw_bls24315.GT
 
 //type ScalarField = sw_bls12381.ScalarField
 //type G1Affine = sw_bls12381.G1Affine
@@ -56,7 +59,7 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 
 	baseCcs, err := frontend.Compile(innerField, r1cs.NewBuilder,
 		&Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{
-			RawTx: make([]frontend.Variable, txSize),
+			RawTx: make([]uints.U8, txSize),
 		})
 
 	if err != nil {
@@ -70,9 +73,9 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 	return baseCcs, innerPK, innerVK, nil
 }
 
-func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem, parentVk native_groth16.VerifyingKey) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func SetupNormalCase(outerField *big.Int, parentCcs *constraint.ConstraintSystem, parentVk *native_groth16.VerifyingKey) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
-	previousVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](parentVk)
+	previousVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](*parentVk)
 	if err != nil {
 		fmt.Printf("Error compile normal circuit : %s", err)
 		return nil, nil, nil, err
@@ -80,9 +83,10 @@ func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem,
 
 	innerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
 		&Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
-			PreviousProof:   groth16.PlaceholderProof[G1Affine, G2Affine](parentCcs),
-			PreviousVk:      previousVk,
-			PreviousWitness: groth16.PlaceholderWitness[ScalarField](parentCcs),
+			PreviousProof: groth16.PlaceholderProof[G1Affine, G2Affine](*parentCcs),
+			PreviousVk:    previousVk,
+			//PreviousVk:      groth16.PlaceholderVerifyingKey[G1Affine, G2Affine, GTEl](*parentCcs),
+			PreviousWitness: groth16.PlaceholderWitness[ScalarField](*parentCcs),
 		})
 
 	if err != nil {
@@ -120,14 +124,15 @@ func CreateBaseCaseFullWitness(
 ) (witness.Witness, error) {
 
 	innerAssignment := Sha256CircuitBaseCase[ScalarField, G1Affine, G2Affine, GTEl]{
-		RawTx: make([]frontend.Variable, len(rawTxBytes)),
+		RawTx: make([]uints.U8, len(rawTxBytes)),
 	}
 
 	//assign the current Txn data
-	for ndx, entry := range rawTxBytes {
-		innerAssignment.RawTx[ndx] = entry
-	}
+	//for ndx, entry := range rawTxBytes {
+	//	innerAssignment.RawTx[ndx] = uints.NewU8(entry)
+	//}
 
+	copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTxBytes))
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 
 	innerWitness, err := frontend.NewWitness(&innerAssignment, InnerCurve.ScalarField())

@@ -58,11 +58,11 @@ func NewBaseProof(baseTxSize int) (*BaseProof, error) {
 
 func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
-	if _, err := os.Stat("base_2_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat("base_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		baseCcs, provingKey, verifyingKey, err := txivc.SetupBaseCase(txSize, innerField)
 
-		baseccsFile, err := os.Create("base_2_ccs.cbor")
+		baseccsFile, err := os.Create("base_ccs.cbor")
 		_, err = baseCcs.WriteTo(baseccsFile)
 		if err != nil {
 			return nil, nil, nil, err
@@ -96,7 +96,7 @@ func (po *BaseProof) readCircuitParams() (constraint.ConstraintSystem, error) {
 
 	baseCcs := native_groth16.NewCS(txivc.InnerCurve)
 
-	ccsFile, err := os.OpenFile("base_2_ccs.cbor", os.O_RDONLY, 0444) //read-only
+	ccsFile, err := os.OpenFile("base_ccs.cbor", os.O_RDONLY, 0444) //read-only
 	if err != nil {
 		return nil, err
 	}
@@ -149,15 +149,15 @@ func (po *BaseProof) CreateBaseCaseWitness(
 ) (witness.Witness, error) {
 
 	innerAssignment := txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
-		RawTx: make([]frontend.Variable, len(rawTxBytes)),
+		RawTx: make([]uints.U8, len(rawTxBytes)),
 	}
 
 	//assign the current Txn data
 	//assign the current Txn data
-	for ndx, entry := range rawTxBytes {
-		innerAssignment.RawTx[ndx] = entry
-	}
-	//copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTxBytes))
+	//for ndx, entry := range rawTxBytes {
+	//	innerAssignment.RawTx[ndx] = entry
+	//}
+	copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTxBytes))
 	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	//copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
 

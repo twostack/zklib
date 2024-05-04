@@ -136,7 +136,7 @@ func CreateOuterAssignment(
 
 	tokenId := [32]byte{}
 	copy(tokenId[:], prevTxnIdBytes)
-	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
+	//copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
 
 	return outerAssignment
 }

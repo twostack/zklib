@@ -94,7 +94,7 @@ func (ps *ProofSystem) readNormalSetupParams(outerField *big.Int) (constraint.Co
 	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		//setup normal case for base parent VK
-		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *ps.baseCcs, *ps.baseVerifyingKey)
+		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, ps.baseCcs, ps.baseVerifyingKey)
 
 		//FIXME:
 		//normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *normalCcs)

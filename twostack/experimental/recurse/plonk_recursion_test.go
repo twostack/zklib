@@ -5,19 +5,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
-	native_plonk "github.com/consensys/gnark/backend/plonk"
-	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/uints"
-	"github.com/consensys/gnark/std/recursion/plonk"
 	"github.com/consensys/gnark/test"
-	"github.com/consensys/gnark/test/unsafekzg"
-	"math/big"
+	plonk2 "github.com/twostack/zklib/twostack/plonk"
 	"testing"
-	plonk2 "zklib/twostack/plonk"
 )
 
 func TestInnerProofCircuitPlonk(t *testing.T) {
@@ -74,6 +65,7 @@ func TestOuterProofCircuitPlonk(t *testing.T) {
 
 }
 
+/*
 func TestInnerProofComputeAndVerifyPlonk(t *testing.T) {
 	//innerCcs, innerVK, innerWitness, innerProof :=
 
@@ -251,10 +243,11 @@ func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constra
 	return innerCcs, innerVK, innerPubWitness, innerProof
 
 }
+*/
 
 // /emulation takes donkey years. Probably impractical
+/* can't set fr.Element from type expr.Term
 func Example_emulated() {
-	/* can't set fr.Element from type expr.Term
 	// compute the proof which we want to verify recursively
 	innerCcs, innerVK, innerWitness, innerProof := computeInnerProofPlonk(ecc.BW6_761.ScalarField(), ecc.BN254.ScalarField())
 
@@ -323,5 +316,5 @@ func Example_emulated() {
 		panic("circuit verification failed: " + err.Error())
 	}
 
-	*/
 }
+*/

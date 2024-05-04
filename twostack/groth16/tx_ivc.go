@@ -1,9 +1,9 @@
 package txivc
 
 import (
+	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
@@ -13,7 +13,7 @@ import (
 * Base case to generate initial proof to get things started
  */
 type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	RawTx []frontend.Variable
+	RawTx []uints.U8
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
@@ -24,15 +24,8 @@ type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2E
  */
 func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
-	uapi, err := uints.New[uints.U32](api)
-
-	ret := make([]uints.U8, len(circuit.RawTx))
-	for i := range ret {
-		ret[i] = uapi.ByteValueOf(circuit.RawTx[i])
-	}
-
 	//do double-sha256
-	firstHash, err := calculateSha256(api, ret)
+	firstHash, err := calculateSha256(api, circuit.RawTx)
 	if err != nil {
 		return err
 	}
@@ -42,6 +35,7 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 	}
 
 	//assert current public input matches calculated txId
+	uapi, err := uints.New[uints.U32](api)
 	for i := range circuit.CurrTxId {
 		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
 	}
@@ -67,15 +61,25 @@ type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 
 func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
-	uapi, err := uints.New[uints.U32](api)
-	field, err := emulated.NewField[FR](api)
-
-	for i := range circuit.CurrTxId {
-		//assert that the previous txn id (in witness) matches that of the current outpoint (in prevTxnId)
-		witnessTxIdBits := field.ToBits(&circuit.PreviousWitness.Public[i])
-		witnessTxIdByte := bits.FromBinary(api, witnessTxIdBits)
-		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxIdByte))
+	verifier, err := stdgroth16.NewVerifier[FR, G1El, G2El, GtEl](api)
+	if err != nil {
+		return err
 	}
+
+	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdgroth16.WithCompleteArithmetic())
+	if err != nil {
+		return err
+	}
+
+	uapi, err := uints.New[uints.U32](api)
+	//field, err := emulated.NewField[FR](api)
+
+	//for i := range circuit.CurrTxId {
+	//	//assert that the previous txn id (in witness) matches that of the current outpoint (in prevTxnId)
+	//	witnessTxIdBits := field.ToBits(&circuit.PreviousWitness.Public[i])
+	//	witnessTxIdByte := bits.FromBinary(api, witnessTxIdBits)
+	//	uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxIdByte))
+	//}
 
 	//reconstitute the transaction hex
 	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
@@ -84,11 +88,11 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 	//do double-sha256
 	firstHash, err := calculateSha256(api, fullTx)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to calculate first round sha256")
 	}
 	calculatedTxId, err := calculateSha256(api, firstHash)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to calculate second round sha256")
 	}
 
 	//loop over the individual bytes of the calculated hash
@@ -98,16 +102,6 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
 	}
 
-	verifier, err := stdgroth16.NewVerifier[FR, G1El, G2El, GtEl](api)
-	if err != nil {
-		return err
-	}
-
-	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness)
-
-	if err != nil {
-		return err
-	}
-
 	return nil
+
 }
