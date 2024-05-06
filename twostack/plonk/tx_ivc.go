@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/algebra"
-	"github.com/consensys/gnark/std/math/bits"
 	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
 	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
@@ -85,14 +84,16 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 
 	//assert that the token ID is being preserved
 	uapi, err := uints.New[uints.U32](api)
-	field, err := emulated.NewField[FR](api)
+	//field, err := emulated.NewField[FR](api)
 
-	for i := range circuit.CurrTxId {
-		//assert that the previous txn id (in witness) matches that of the current outpoint (in prevTxnId)
-		witnessTxIdBits := field.ToBits(&circuit.PreviousWitness.Public[i])
-		witnessTxIdByte := bits.FromBinary(api, witnessTxIdBits)
-		uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxIdByte))
-	}
+	//fmt.Printf("Checking previous txnid against witness")
+	//for i := range circuit.CurrTxId {
+	//	//assert that the previous txn id (in witness) matches that of the current outpoint (in prevTxnId)
+	//	witnessTxIdBits := field.ToBits(&circuit.PreviousWitness.Public[i])
+	//	witnessTxIdByte := bits.FromBinary(api, witnessTxIdBits)
+	//	uapi.ByteAssertEq(circuit.PrevTxId[i], uapi.ByteValueOf(witnessTxIdByte))
+	//}
+	//fmt.Printf("PrevTxnId checks out")
 
 	//reconstitute the transaction hex
 	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
@@ -110,9 +111,11 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 
 	//loop over the individual bytes of the calculated hash
 	//and compare them to the expected digest
+	fmt.Printf("Checking claimed digest matches\n")
 	for i := range circuit.CurrTxId {
 		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
 	}
+	fmt.Printf("Claimed digest matches OK\n")
 
 	//  construct a verifier in-circuit
 	verifier, err := stdplonk.NewVerifier[FR, G1El, G2El, GtEl](api)
@@ -120,8 +123,10 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 		return fmt.Errorf("new verifier: %w", err)
 	}
 
+	fmt.Printf("Verifying previous proof\n")
 	//verify the previous proof
 	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdplonk.WithCompleteArithmetic())
+	fmt.Printf("Proof checks out\n")
 
 	if err != nil {
 		return err

@@ -75,17 +75,17 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 
 func SetupNormalCase(outerField *big.Int, parentCcs *constraint.ConstraintSystem, parentVk *native_groth16.VerifyingKey) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
-	previousVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](*parentVk)
-	if err != nil {
-		fmt.Printf("Error compile normal circuit : %s", err)
-		return nil, nil, nil, err
-	}
+	//previousVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](*parentVk)
+	//if err != nil {
+	//	fmt.Printf("Error compile normal circuit : %s", err)
+	//	return nil, nil, nil, err
+	//}
 
-	innerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
+	outerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
 		&Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
 			PreviousProof: groth16.PlaceholderProof[G1Affine, G2Affine](*parentCcs),
-			PreviousVk:    previousVk,
-			//PreviousVk:      groth16.PlaceholderVerifyingKey[G1Affine, G2Affine, GTEl](*parentCcs),
+			//PreviousVk:    previousVk,
+			PreviousVk:      groth16.PlaceholderVerifyingKey[G1Affine, G2Affine, GTEl](*parentCcs),
 			PreviousWitness: groth16.PlaceholderWitness[ScalarField](*parentCcs),
 		})
 
@@ -94,12 +94,12 @@ func SetupNormalCase(outerField *big.Int, parentCcs *constraint.ConstraintSystem
 		return nil, nil, nil, err
 	}
 
-	innerPK, innerVK, err := native_groth16.Setup(innerCcs)
+	outerPk, outerVk, err := native_groth16.Setup(outerCcs)
 	if err != nil {
 		fmt.Printf("Error during setup of normal circuit : %s", err)
 		return nil, nil, nil, err
 	}
-	return innerCcs, innerPK, innerVK, nil
+	return outerCcs, outerPk, outerVk, nil
 }
 
 func CreateBaseCaseLightWitness(

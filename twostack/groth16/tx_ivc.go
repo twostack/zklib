@@ -16,7 +16,7 @@ type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2E
 	RawTx []uints.U8
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	CurrTxId []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 }
 
 /*
@@ -51,12 +51,12 @@ type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 	PreviousVk      stdgroth16.VerifyingKey[G1El, G2El, GtEl] `gnark:"-"` // constant verification key
 	PreviousWitness stdgroth16.Witness[FR]
 
-	CurrTxPrefix [5]uints.U8
-	PrevTxId     [32]uints.U8
-	CurrTxPost   [188]uints.U8
+	CurrTxPrefix []uints.U8 //5
+	PrevTxId     []uints.U8 //32
+	CurrTxPost   []uints.U8 //188
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId [32]uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	CurrTxId []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 }
 
 func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {

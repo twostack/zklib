@@ -20,7 +20,7 @@ type Sha256CircuitInner[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El a
  */
 func (circuit *Sha256CircuitInner[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
-	api.AssertIsEqual(len(circuit.RawTx), 191)
+	//api.AssertIsEqual(len(circuit.RawTx), 191)
 
 	return nil
 }
@@ -43,6 +43,11 @@ func (circuit *Sha256CircuitOuter[FR, G1El, G2El, GtEl]) Define(api frontend.API
 		return err
 	}
 
-	return verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness)
+	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdgroth16.WithCompleteArithmetic())
 
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

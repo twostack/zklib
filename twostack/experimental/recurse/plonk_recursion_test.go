@@ -59,13 +59,14 @@ func TestInnerProofCircuitPlonk(t *testing.T) {
 
 }
 
+/* disable for now until can re-align circuit vars
+
 // deserialise existing inner proof, and check that we can verify that proof
 // inside our outer-circuit
 func TestOuterProofCircuitPlonk(t *testing.T) {
 
 }
 
-/*
 func TestInnerProofComputeAndVerifyPlonk(t *testing.T) {
 	//innerCcs, innerVK, innerWitness, innerProof :=
 
@@ -96,21 +97,20 @@ func TestOuterProofAndVerifyPlonkSuccinct(t *testing.T) {
 		panic(err)
 	}
 
-	outerCircuit := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		InnerWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
-		Proof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
-		VerifyingKey: circuitVk,
+	outerCircuitPlonk := &plonk2.Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		PreviousWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
+		PreviousProof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
+		PreviousVk: circuitVk,
 	}
-	outerAssignment := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-		InnerWitness: circuitWitness,
-		Proof:        circuitProof,
+	outerAssignment := &plonk2.Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		PreviousWitness: circuitWitness,
+		PreviousProof:        circuitProof,
 	}
 
-	err = test.IsSolved(outerCircuit, outerAssignment, ecc.BW6_761.ScalarField())
+	err = test.IsSolved(outerCircuitPlonk, outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 
 }
-
 func TestOuterProofAndVerifyPlonk(t *testing.T) {
 
 	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
@@ -134,12 +134,12 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 	}
 
 	prevTxnIdBytes, _ := hex.DecodeString("193a78f8a6883ae82d7e9f146934af4d6edc2f0f5a16d0b931bdfaa9a0d22eac")
-	outerCircuit := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+	outerCircuitPlonk := &plonk2.Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: plonk.PlaceholderWitness[sw_bls12377.ScalarField](innerCcs),
 		Proof:        plonk.PlaceholderProof[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerCcs),
 		VerifyingKey: circuitVk,
 	}
-	copy(outerCircuit.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
+	copy(outerCircuitPlonk.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 
 	outerAssignment := &plonk2.Sha256OuterCircuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		InnerWitness: circuitWitness,
@@ -148,7 +148,7 @@ func TestOuterProofAndVerifyPlonk(t *testing.T) {
 	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
 
 	// compile the outer circuit
-	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, outerCircuit)
+	ccs, err := frontend.Compile(ecc.BW6_761.ScalarField(), scs.NewBuilder, outerCircuitPlonk)
 	if err != nil {
 		panic("compile failed: " + err.Error())
 	}
@@ -243,6 +243,7 @@ func computeInnerProofPlonk(assert *test.Assert, field, outer *big.Int) (constra
 	return innerCcs, innerVK, innerPubWitness, innerProof
 
 }
+
 */
 
 // /emulation takes donkey years. Probably impractical
@@ -265,7 +266,7 @@ func Example_emulated() {
 		panic(err)
 	}
 
-	outerCircuit := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
+	outerCircuitPlonk := &Sha256OuterCircuit[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine, sw_bw6761.GTEl]{
 		PreviousWitness: plonk.PlaceholderWitness[sw_bw6761.ScalarField](innerCcs),
 		PreviousProof:        plonk.PlaceholderProof[sw_bw6761.ScalarField, sw_bw6761.G1Affine, sw_bw6761.G2Affine](innerCcs),
 		PreviousVk: circuitVk,
@@ -275,7 +276,7 @@ func Example_emulated() {
 		PreviousProof:        circuitProof,
 	}
 	// compile the outer circuit
-	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuit)
+	ccs, err := frontend.Compile(ecc.BN254.ScalarField(), scs.NewBuilder, outerCircuitPlonk)
 	if err != nil {
 		panic("compile failed: " + err.Error())
 	}

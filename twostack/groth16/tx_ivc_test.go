@@ -184,8 +184,8 @@ func TestNormalCaseSuccint(t *testing.T) {
 
 	outerCircuit := &Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
 		PreviousProof: groth16.PlaceholderProof[G1Affine, G2Affine](baseCcs),
-		PreviousVk:    circuitVk,
-		//PreviousVk:      groth16.PlaceholderVerifyingKey[G1Affine, G2Affine, GTEl](baseCcs),
+		//PreviousVk:    circuitVk,
+		PreviousVk:      groth16.PlaceholderVerifyingKey[G1Affine, G2Affine, GTEl](baseCcs),
 		PreviousWitness: groth16.PlaceholderWitness[ScalarField](baseCcs),
 	}
 
