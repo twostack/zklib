@@ -23,13 +23,13 @@ type NormalProofInfo struct {
 	Proof        string `json:"proof" binding:"required"`
 }
 
-//var InnerCurve = ecc.BLS12_377
-//var OuterCurve = ecc.BW6_761
-//
-//type ScalarField = sw_bls12377.ScalarField
-//type G1Affine = sw_bls12377.G1Affine
-//type G2Affine = sw_bls12377.G2Affine
-//type GTEl = sw_bls12377.GT
+var InnerCurve = ecc.BLS12_377
+var OuterCurve = ecc.BW6_761
+
+type ScalarField = sw_bls12377.ScalarField
+type G1Affine = sw_bls12377.G1Affine
+type G2Affine = sw_bls12377.G2Affine
+type GTEl = sw_bls12377.GT
 
 //var InnerCurve = ecc.BLS24_315
 //var OuterCurve = ecc.BW6_633
@@ -174,7 +174,7 @@ func CreateNormalFullWitness(
 *
 Light witness is used for verification of an existing proof. I.e. only public params are filled.
 */
-func CreateNormalLightWitness(outerField *big.Int) (*witness.Witness, error) {
+func CreateNormalLightWitness(txId []byte, outerField *big.Int) (*witness.Witness, error) {
 
 	outerAssignment := Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		CurrTxId: make([]frontend.Variable, 32),

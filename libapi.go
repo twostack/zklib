@@ -49,7 +49,7 @@ type ProofSystem struct {
 	baseProvingKey   *native_groth16.ProvingKey
 }
 
-func NewProofSystem() (*ProofSystem, error) {
+func NewProofSystem(normalPrefixSize int, normalPostfixSize int) (*ProofSystem, error) {
 
 	ps := &ProofSystem{}
 
@@ -62,7 +62,7 @@ func NewProofSystem() (*ProofSystem, error) {
 		return nil, err
 	}
 
-	err = ps.setupNormalCase()
+	err = ps.setupNormalCase(normalPrefixSize, normalPostfixSize)
 
 	if err != nil {
 		return nil, err
@@ -71,12 +71,12 @@ func NewProofSystem() (*ProofSystem, error) {
 	return ps, nil
 }
 
-func (ps *ProofSystem) setupNormalCase() error {
+func (ps *ProofSystem) setupNormalCase(prefixSize int, postfixSize int) error {
 
 	//IMPORTANT: Normal proof needs to read the OUTER field's curveId
 	ps.normalCurveId = txivc.OuterCurve
 
-	normalCcs, provingKey, verifyingKey, err := ps.readNormalSetupParams(ps.OuterField)
+	normalCcs, provingKey, verifyingKey, err := ps.readNormalSetupParams(prefixSize, postfixSize, ps.OuterField)
 
 	if err != nil {
 		return err
@@ -89,12 +89,12 @@ func (ps *ProofSystem) setupNormalCase() error {
 	return nil
 }
 
-func (ps *ProofSystem) readNormalSetupParams(outerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func (ps *ProofSystem) readNormalSetupParams(prefixSize int, postfixSize int, outerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		//setup normal case for base parent VK
-		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, ps.baseCcs, ps.baseVerifyingKey)
+		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(prefixSize, postfixSize, outerField, ps.baseCcs)
 
 		//FIXME:
 		//normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *normalCcs)
@@ -419,9 +419,9 @@ func BootBaseProof(baseTxSize int) (*BaseProof, error) {
 	return baseProof, nil
 }
 
-func bootNormalProof(baseProof *BaseProof) (*NormalProof, error) {
+func bootNormalProof(prefixSize int, postfixSize int, baseProof *BaseProof) (*NormalProof, error) {
 
-	normalProof, err := NewNormalProof(baseProof)
+	normalProof, err := NewNormalProof(prefixSize, postfixSize, baseProof)
 	if err != nil {
 		return nil, err
 	}
