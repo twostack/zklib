@@ -2,15 +2,9 @@ package experimental
 
 import (
 	"github.com/consensys/gnark-crypto/ecc"
-	native_plonk "github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/backend/witness"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/math/uints"
-	"github.com/consensys/gnark/std/recursion/plonk"
-	"github.com/consensys/gnark/test/unsafekzg"
 	"math/big"
 )
 
@@ -127,47 +121,50 @@ func (circuit *TxCircuit) Define(api frontend.API) error {
 	return nil
 }
 
+/*
 func SetupTxLib(innerField *big.Int) (constraint.ConstraintSystem, native_plonk.ProvingKey, native_plonk.VerifyingKey, error) {
 
-	baseCcs, err := frontend.Compile(innerField, scs.NewBuilder,
-		&SigCircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
+		baseCcs, err := frontend.Compile(innerField, scs.NewBuilder,
+			&SigCircuitBaseCase[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{})
 
-	if err != nil {
-		return nil, nil, nil, err
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		srs, srsLagrange, err := unsafekzg.NewSRS(baseCcs)
+
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		innerPK, innerVK, err := native_plonk.Setup(baseCcs, srs, srsLagrange)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return baseCcs, innerPK, innerVK, nil
 	}
-
-	srs, srsLagrange, err := unsafekzg.NewSRS(baseCcs)
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	innerPK, innerVK, err := native_plonk.Setup(baseCcs, srs, srsLagrange)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return baseCcs, innerPK, innerVK, nil
-}
 
 func CreateTxProof(fullTxBytes []byte, innerCcs constraint.ConstraintSystem, provingKey native_plonk.ProvingKey) (
+
 	witness.Witness,
 	native_plonk.Proof,
 	error,
+
 ) {
 
-	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
+		innerField := ecc.BLS12_377.ScalarField()
+		outerField := ecc.BW6_761.ScalarField()
 
-	genesisWitness, err := CreateTxWitness(fullTxBytes)
-	if err != nil {
-		return nil, nil, err
+		genesisWitness, err := CreateTxWitness(fullTxBytes)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		proof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
+
+		return genesisWitness, proof, err
 	}
-
-	proof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
-
-	return genesisWitness, proof, err
-}
-
+*/
 func CreateTxWitness(
 	fullTxBytes []byte,
 ) (witness.Witness, error) {

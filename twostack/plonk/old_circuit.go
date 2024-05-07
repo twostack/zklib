@@ -3,12 +3,8 @@ package txivc
 import (
 	"fmt"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/hash/sha2"
-	"github.com/consensys/gnark/std/math/bits"
-	"github.com/consensys/gnark/std/math/emulated"
 	"github.com/consensys/gnark/std/math/uints"
-	stdplonk "github.com/consensys/gnark/std/recursion/plonk"
 )
 
 // circuit that proves in zero knowledge that there exists
@@ -73,42 +69,41 @@ func calculateSha256(api frontend.API, preImage []uints.U8) ([]uints.U8, error) 
 	return res, nil
 }
 
+/*
 type Sha256OuterCircuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	Proof        stdplonk.Proof[FR, G1El, G2El]
 	VerifyingKey stdplonk.VerifyingKey[FR, G1El, G2El] `gnark:"-"` // constant verification key
 	InnerWitness stdplonk.Witness[FR]                  `gnark:",public"`
 
-	/* The PrevTxId of the Outer Circuit must be matched and equal to the CurrTxId of the InnerProof.
-	   Because the InnerProof that we are verifying for the current Transaction
-	   was actually generated in/for the parent transaction (in who's context it was the )
-
-	   Furthermore, both of the following must be public, because the verifying wallet
-	   will need to look at current Txn, extract these public values.
-	   And use them to validate the provided Outer PreviousProof.
-	*/
+	 //the prevtxid of the outer circuit must be matched and equal to the currtxid of the innerproof.
+	 //  because the innerproof that we are verifying for the current transaction
+	 //  was actually generated in/for the parent transaction (in who's context it was the )
+	 //
+	 //  furthermore, both of the following must be public, because the verifying wallet
+	 //  will need to look at current txn, extract these public values.
+	 //  And use them to validate the provided Outer PreviousProof.
 	PrevTxId [32]uints.U8 `gnark:",public"`
 }
+
+*/
 
 /*
 *
 
 	The outer circuit for our recursive proof that accumulates a chain of transactions.
 */
+/**
 func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
-	/**
-	Following section of code is copied from the nonnative_doc_test.go example
-	*/
+	//Following section of code is copied from the nonnative_doc_test.go example
 	verifier, err := stdplonk.NewVerifier[FR, G1El, G2El, GtEl](api)
 	if err != nil {
 		return fmt.Errorf("new verifier: %w", err)
 	}
 
-	/*
-	  It would be sufficient to assert that the value of
-	  circuit.PreviousWitness.Public must == circuit.PrevTxId
-	*/
-
+	  //It would be sufficient to assert that the value of
+	  //circuit.PreviousWitness.Public must == circuit.PrevTxId
+	  //
 	err = verifier.AssertProof(circuit.VerifyingKey, circuit.Proof, circuit.InnerWitness, stdplonk.WithCompleteArithmetic())
 
 	if err != nil {
@@ -119,10 +114,8 @@ func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 	//      I don't think we need to try and explicitly pass that info though. It should be implicitly
 	//      carried as public part of Witness in Outer Circuit's PreviousProof (yes ? )
 
-	/*
-		The following might be sufficient for the recursive case, since the
-		public input (PrevTxId) is provided as part of the Witness of the Outer Circuit along with PrevProof
-	*/
+		//The following might be sufficient for the recursive case, since the
+		//public input (PrevTxId) is provided as part of the Witness of the Outer Circuit along with PrevProof
 
 	field, err := emulated.NewField[FR](api)
 	uapi, err := uints.New[uints.U32](api)
@@ -136,3 +129,4 @@ func (circuit *Sha256OuterCircuit[FR, G1El, G2El, GtEl]) Define(api frontend.API
 	return nil
 
 }
+*/

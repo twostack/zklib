@@ -28,7 +28,7 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 	}
 
 	scsConstraint := baseCcs.(*cs.SparseR1CS)
-	srs, srsLagrange, err := unsafekzg.NewSRS(scsConstraint)
+	srs, srsLagrange, err := unsafekzg.NewSRS(scsConstraint, unsafekzg.WithFSCache())
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -54,12 +54,11 @@ func SetupNormalCase(outerField *big.Int, parentCcs constraint.ConstraintSystem,
 		return nil, nil, nil, err
 	}
 
-	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(innerCcs, unsafekzg.WithFSCache())
 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
 	innerPK, innerVK, err := native_plonk.Setup(innerCcs, srs, srsLagrange)
 	if err != nil {
 		return nil, nil, nil, err
@@ -136,7 +135,7 @@ func CreateOuterAssignment(
 
 	tokenId := [32]byte{}
 	copy(tokenId[:], prevTxnIdBytes)
-	copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
+	//copy(outerAssignment.TokenId[:], uints.NewU8Array(tokenId[:]))
 
 	return outerAssignment
 }

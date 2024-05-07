@@ -147,7 +147,7 @@ func (po *NormalProof) readSetupParams(outerField *big.Int, curveId ecc.ID) (con
 	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		//setup normal case for base parent VK
-		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *(po.BaseProofObj).Ccs, *(po.BaseProofObj).VerifyingKey)
+		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, po.BaseProofObj.Ccs, po.BaseProofObj.VerifyingKey)
 		if err != nil {
 			return nil, nil, nil, err
 		}
