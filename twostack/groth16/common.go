@@ -1,6 +1,11 @@
 package txivc
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
@@ -10,6 +15,8 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/recursion/groth16"
+	"github.com/libsv/go-bt"
+	"io"
 	"math/big"
 )
 
@@ -54,7 +61,7 @@ type GTEl = sw_bls12377.GT
 //type G2Affine = sw_bls24315.G2Affine
 //type GTEl = sw_bls24315.GT
 
-func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func SetupBaseCase(txSize int, innerField *big.Int) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
 
 	baseCcs, err := frontend.Compile(innerField, r1cs.NewBuilder,
 		&Sha256CircuitBaseCase{
@@ -70,10 +77,10 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return baseCcs, innerPK, innerVK, nil
+	return &baseCcs, &innerPK, &innerVK, nil
 }
 
-func SetupNormalCase(prefixSize int, postfixSize int, outerField *big.Int, parentCcs *constraint.ConstraintSystem) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func SetupNormalCase(prefixSize int, postfixSize int, outerField *big.Int, parentCcs *constraint.ConstraintSystem) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
 
 	outerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
 		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
@@ -97,7 +104,7 @@ func SetupNormalCase(prefixSize int, postfixSize int, outerField *big.Int, paren
 		fmt.Printf("Error during setup of normal circuit : %s", err)
 		return nil, nil, nil, err
 	}
-	return outerCcs, outerPk, outerVk, nil
+	return &outerCcs, &outerPk, &outerVk, nil
 }
 
 func CreateBaseCaseLightWitness(
@@ -238,4 +245,163 @@ func ComputeProof(ccs *constraint.ConstraintSystem, provingKey *native_groth16.P
 
 	proverOptions := groth16.GetNativeProverOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
 	return native_groth16.Prove(*ccs, *provingKey, outerWitness, proverOptions)
+}
+
+func CreateNormalCaseProof(
+	baseCcs *constraint.ConstraintSystem,
+	baseVk *native_groth16.VerifyingKey,
+	baseCurveId ecc.ID,
+	innerField *big.Int,
+	outerField *big.Int,
+	normalProvingKey *native_groth16.ProvingKey,
+	normalInfo *NormalProofInfo) (string, error) {
+
+	var prevTxCcs constraint.ConstraintSystem
+	var prevTxVk native_groth16.VerifyingKey
+
+	var prevTxWitness *witness.Witness
+	var prevTxProof native_groth16.Proof
+
+	fullTxBytes, err := hex.DecodeString(normalInfo.RawTx)
+	if err != nil {
+		return "", err
+	}
+
+	prefixBytes, prevTxnId, postfixBytes, err := SliceTx(fullTxBytes, normalInfo.InputIndex)
+
+	firstHash := sha256.Sum256(fullTxBytes)
+	currTxId := sha256.Sum256(firstHash[:])
+
+	//initialize params based on whether our previous txn was a base case of normal case
+	if normalInfo.IsParentBase {
+		prevTxCcs = *baseCcs
+		prevTxVk = *baseVk
+		prevTxProof = native_groth16.NewProof(baseCurveId)
+		prevTxWitness, err = CreateBaseCaseLightWitness(currTxId[:], innerField)
+		if err != nil {
+			return "", err
+		}
+
+	} else {
+		/*
+			prevTxCcs = *ps.normalCcs
+			prevTxVk = *ps.normalVerifyingKey
+			prevTxProof = native_groth16.NewProof(normalProof.CurveId)
+			prevTxWitness, err = txivc.CreateNormalLightWitness(currTxId[:], normalProof.InnerField)
+			if err != nil {
+				return "", err
+			}
+		*/
+		return "proof with non-base case txn is not implemented yet", nil
+	}
+
+	var innerProofBytes = []byte(normalInfo.Proof)
+	err = json.Unmarshal(innerProofBytes, &prevTxProof)
+	if err != nil {
+		//log.Error().Msg(fmt.Sprintf("Error unmarshalling proof : [%s]\n", err.Error()))
+		return "", err
+	}
+
+	normalWitness, err := CreateNormalFullWitness(
+		*prevTxWitness,
+		prevTxProof,
+		prevTxVk,
+		prefixBytes,
+		prevTxnId,
+		postfixBytes,
+		fullTxBytes,
+		outerField,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	resultProof, err := ComputeProof(&prevTxCcs, normalProvingKey, normalWitness)
+	if err != nil {
+		//log.Error().Msg(fmt.Sprintf("Error computing proof : [%s]\n", err.Error()))
+		return "", err
+	}
+
+	jsonBytes, err := json.Marshal(resultProof)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonBytes), nil
+
+}
+
+/*
+Split a Raw Transaction into it's component "prefix", "suffix" and "postfix" parts
+
+inputIndex - the index of the input that
+*/
+func SliceTx(rawTx []byte, inputIndex int) ([]byte, []byte, []byte, error) {
+
+	//tx, err := bt.NewTxFromBytes(rawTx)
+
+	reader := bytes.NewReader(rawTx)
+
+	txIdStart, postfixStart, err := getOffSets(uint64(inputIndex), reader)
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return rawTx[0:txIdStart], rawTx[txIdStart : txIdStart+32], rawTx[postfixStart:len(rawTx)], nil
+
+}
+
+func getOffSets(inputIndex uint64, r io.Reader) (int, int, error) {
+	t := bt.Tx{}
+
+	version := make([]byte, 4)
+	if n, err := io.ReadFull(r, version); n != 4 || err != nil {
+		return 0, 0, err
+	}
+	t.Version = binary.LittleEndian.Uint32(version)
+
+	var err error
+
+	inputCount, _, err := bt.DecodeVarIntFromReader(r)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if inputCount < inputIndex+1 {
+		return 0, 0, fmt.Errorf("Input index is outside of the range of [%d] available inputs", inputCount)
+	}
+
+	inputCountSize := len(bt.VarInt(inputCount))
+
+	txIdOffSet := 4 + inputCountSize //version + numInput bytes
+
+	// create Inputs
+	var i uint64 = 0
+	var input *bt.Input
+
+	//read up to input # inputIndex
+
+	for ; i < inputIndex; i++ {
+		input, err = bt.NewInputFromReader(r)
+		if err != nil {
+			return 0, 0, err
+		}
+		t.Inputs = append(t.Inputs, input)
+	}
+
+	//get the size of inputs read so far
+	var inputSize int = 0
+	for _, input := range t.Inputs {
+		inputSize = inputSize + len(input.ToBytes(false))
+	}
+
+	//since the first entry of the next input is the txid we want
+	txIdOffSet = txIdOffSet + inputSize
+
+	postfixStart := txIdOffSet + 32
+
+	return txIdOffSet, postfixStart, nil
+
 }

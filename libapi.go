@@ -1,9 +1,7 @@
 package zklib
 
 import (
-	"bytes"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,12 +9,9 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/std/recursion/groth16"
-	"github.com/libsv/go-bt"
 	txivc "github.com/twostack/zklib/twostack/groth16"
-	"io"
 	"log"
 	"math/big"
 	"os"
@@ -82,14 +77,14 @@ func (ps *ProofSystem) setupNormalCase(prefixSize int, postfixSize int) error {
 		return err
 	}
 
-	ps.normalCcs = &normalCcs
-	ps.normalProvingKey = &provingKey
-	ps.normalVerifyingKey = &verifyingKey
+	ps.normalCcs = normalCcs
+	ps.normalProvingKey = provingKey
+	ps.normalVerifyingKey = verifyingKey
 
 	return nil
 }
 
-func (ps *ProofSystem) readNormalSetupParams(prefixSize int, postfixSize int, outerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func (ps *ProofSystem) readNormalSetupParams(prefixSize int, postfixSize int, outerField *big.Int) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
@@ -100,7 +95,7 @@ func (ps *ProofSystem) readNormalSetupParams(prefixSize int, postfixSize int, ou
 		//normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *normalCcs)
 
 		normalCcsFile, err := os.Create("norm_ccs.cbor")
-		_, err = normalCcs.WriteTo(normalCcsFile)
+		_, err = (*normalCcs).WriteTo(normalCcsFile)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -144,21 +139,21 @@ func (ps *ProofSystem) setupBaseCase(baseTxSize int) error {
 		return err
 	}
 
-	ps.baseCcs = &baseCcs
-	ps.baseProvingKey = &baseProvingKey
-	ps.baseVerifyingKey = &baseVerifyingKey
+	ps.baseCcs = baseCcs
+	ps.baseProvingKey = baseProvingKey
+	ps.baseVerifyingKey = baseVerifyingKey
 
 	return nil
 }
 
-func (ps *ProofSystem) readBaseParams(txSize int, innerField *big.Int) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func (ps *ProofSystem) readBaseParams(txSize int, innerField *big.Int) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("base_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		baseCcs, provingKey, verifyingKey, err := txivc.SetupBaseCase(txSize, innerField)
 
 		baseccsFile, err := os.Create("base_ccs.cbor")
-		_, err = baseCcs.WriteTo(baseccsFile)
+		_, err = (*baseCcs).WriteTo(baseccsFile)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -187,7 +182,7 @@ func (ps *ProofSystem) readBaseParams(txSize int, innerField *big.Int) (constrai
 	}
 }
 
-func (ps *ProofSystem) readCircuitParams(prefix string) (constraint.ConstraintSystem, error) {
+func (ps *ProofSystem) readCircuitParams(prefix string) (*constraint.ConstraintSystem, error) {
 
 	baseCcs := native_groth16.NewCS(txivc.InnerCurve)
 
@@ -201,14 +196,14 @@ func (ps *ProofSystem) readCircuitParams(prefix string) (constraint.ConstraintSy
 	}
 	ccsFile.Close()
 
-	return baseCcs, nil
+	return &baseCcs, nil
 }
 
-func writeKeys(verifyingKey native_groth16.VerifyingKey, provingKey native_groth16.ProvingKey, prefix string) error {
+func writeKeys(verifyingKey *native_groth16.VerifyingKey, provingKey *native_groth16.ProvingKey, prefix string) error {
 
 	start := time.Now()
 	innerVKFile, err := os.Create(prefix + "vk.cbor")
-	_, err = verifyingKey.WriteRawTo(innerVKFile)
+	_, err = (*verifyingKey).WriteRawTo(innerVKFile)
 	if err != nil {
 		return fmt.Errorf("Failed to write Verifying Key - %s", err)
 	}
@@ -221,7 +216,7 @@ func writeKeys(verifyingKey native_groth16.VerifyingKey, provingKey native_groth
 
 	start = time.Now()
 	innerPKFile, err := os.Create(prefix + "pk.cbor")
-	_, err = provingKey.WriteRawTo(innerPKFile)
+	_, err = (*provingKey).WriteRawTo(innerPKFile)
 	if err != nil {
 		return fmt.Errorf("Failed to write Proving Key - %s", err)
 	}
@@ -234,7 +229,7 @@ func writeKeys(verifyingKey native_groth16.VerifyingKey, provingKey native_groth
 	return nil
 }
 
-func readKeys(prefix string, curveId ecc.ID) (native_groth16.VerifyingKey, native_groth16.ProvingKey, error) {
+func readKeys(prefix string, curveId ecc.ID) (*native_groth16.VerifyingKey, *native_groth16.ProvingKey, error) {
 
 	start := time.Now()
 	innerVKFile, err := os.OpenFile(prefix+"vk.cbor", os.O_RDONLY, 0444) //read-only
@@ -269,85 +264,12 @@ func readKeys(prefix string, curveId ecc.ID) (native_groth16.VerifyingKey, nativ
 	end = time.Since(start)
 	fmt.Printf("Importing Proving Key took : %s\n", end)
 
-	return innerVK, innerPK, nil
+	return &innerVK, &innerPK, nil
 }
 
 func (ps *ProofSystem) CreateNormalCaseProof(normalInfo *txivc.NormalProofInfo) (string, error) {
 	//outerAssignment := normalProof.CreateOuterAssignment()
-
-	var prevTxCcs constraint.ConstraintSystem
-	var prevTxVk native_groth16.VerifyingKey
-
-	var prevTxWitness *witness.Witness
-	var prevTxProof native_groth16.Proof
-
-	fullTxBytes, err := hex.DecodeString(normalInfo.RawTx)
-	if err != nil {
-		return "", err
-	}
-
-	prefixBytes, prevTxnId, postfixBytes, err := SliceTx(fullTxBytes, normalInfo.InputIndex)
-
-	firstHash := sha256.Sum256(fullTxBytes)
-	currTxId := sha256.Sum256(firstHash[:])
-
-	//initialize params based on whether our previous txn was a base case of normal case
-	if normalInfo.IsParentBase {
-		prevTxCcs = *ps.baseCcs
-		prevTxVk = *ps.baseVerifyingKey
-		prevTxProof = native_groth16.NewProof(ps.baseCurveId)
-		prevTxWitness, err = txivc.CreateBaseCaseLightWitness(currTxId[:], ps.InnerField)
-		if err != nil {
-			return "", err
-		}
-
-	} else {
-		/*
-			prevTxCcs = *ps.normalCcs
-			prevTxVk = *ps.normalVerifyingKey
-			prevTxProof = native_groth16.NewProof(normalProof.CurveId)
-			prevTxWitness, err = txivc.CreateNormalLightWitness(currTxId[:], normalProof.InnerField)
-			if err != nil {
-				return "", err
-			}
-		*/
-		return "proof with non-base case txn is not implemented yet", nil
-	}
-
-	var innerProofBytes = []byte(normalInfo.Proof)
-	err = json.Unmarshal(innerProofBytes, &prevTxProof)
-	if err != nil {
-		//log.Error().Msg(fmt.Sprintf("Error unmarshalling proof : [%s]\n", err.Error()))
-		return "", err
-	}
-
-	normalWitness, err := txivc.CreateNormalFullWitness(
-		*prevTxWitness,
-		prevTxProof,
-		prevTxVk,
-		prefixBytes,
-		prevTxnId,
-		postfixBytes,
-		fullTxBytes,
-		ps.OuterField,
-	)
-	if err != nil {
-		return "", err
-	}
-
-	resultProof, err := txivc.ComputeProof(&prevTxCcs, ps.normalProvingKey, normalWitness)
-	if err != nil {
-		//log.Error().Msg(fmt.Sprintf("Error computing proof : [%s]\n", err.Error()))
-		return "", err
-	}
-
-	jsonBytes, err := json.Marshal(resultProof)
-
-	if err != nil {
-		return "", err
-	}
-
-	return string(jsonBytes), nil
+	return txivc.CreateNormalCaseProof(ps.baseCcs, ps.baseVerifyingKey, ps.baseCurveId, ps.InnerField, ps.OuterField, ps.normalProvingKey, normalInfo)
 }
 
 func (ps *ProofSystem) CreateBaseCaseProof(pInfo *txivc.BaseProofInfo) (string, error) {
@@ -452,80 +374,6 @@ func bootNormalProof(prefixSize int, postfixSize int, baseProof *BaseProof) (*No
 /**
 TX UTIL. Slicer
 */
-
-/*
-Split a Raw Transaction into it's component "prefix", "suffix" and "postfix" parts
-
-inputIndex - the index of the input that
-*/
-func SliceTx(rawTx []byte, inputIndex int) ([]byte, []byte, []byte, error) {
-
-	//tx, err := bt.NewTxFromBytes(rawTx)
-
-	reader := bytes.NewReader(rawTx)
-
-	txIdStart, postfixStart, err := getOffSets(uint64(inputIndex), reader)
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return rawTx[0:txIdStart], rawTx[txIdStart : txIdStart+32], rawTx[postfixStart:len(rawTx)], nil
-
-}
-
-func getOffSets(inputIndex uint64, r io.Reader) (int, int, error) {
-	t := bt.Tx{}
-
-	version := make([]byte, 4)
-	if n, err := io.ReadFull(r, version); n != 4 || err != nil {
-		return 0, 0, err
-	}
-	t.Version = binary.LittleEndian.Uint32(version)
-
-	var err error
-
-	inputCount, _, err := bt.DecodeVarIntFromReader(r)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if inputCount < inputIndex+1 {
-		return 0, 0, fmt.Errorf("Input index is outside of the range of [%d] available inputs", inputCount)
-	}
-
-	inputCountSize := len(bt.VarInt(inputCount))
-
-	txIdOffSet := 4 + inputCountSize //version + numInput bytes
-
-	// create Inputs
-	var i uint64 = 0
-	var input *bt.Input
-
-	//read up to input # inputIndex
-
-	for ; i < inputIndex; i++ {
-		input, err = bt.NewInputFromReader(r)
-		if err != nil {
-			return 0, 0, err
-		}
-		t.Inputs = append(t.Inputs, input)
-	}
-
-	//get the size of inputs read so far
-	var inputSize int = 0
-	for _, input := range t.Inputs {
-		inputSize = inputSize + len(input.ToBytes(false))
-	}
-
-	//since the first entry of the next input is the txid we want
-	txIdOffSet = txIdOffSet + inputSize
-
-	postfixStart := txIdOffSet + 32
-
-	return txIdOffSet, postfixStart, nil
-
-}
 
 /*
 func CreateBaseCaseProof(proverOptions backend.ProverOption, innerCcs constraint.ConstraintSystem, genesisWitness witness.Witness, provingKey native_groth16.ProvingKey) (

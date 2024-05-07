@@ -54,9 +54,9 @@ func NewNormalProof(prefixSize int, postfixSize int, baseProof *BaseProof) (*Nor
 		return nil, err
 	}
 
-	po.Ccs = &normalCcs
-	po.ProvingKey = &provingKey
-	po.VerifyingKey = &verifyingKey
+	po.Ccs = normalCcs
+	po.ProvingKey = provingKey
+	po.VerifyingKey = verifyingKey
 
 	return po, nil
 }
@@ -131,7 +131,7 @@ func (po *NormalProof) createOuterAssignment(
 }
 
 func (po *NormalProof) WriteKeys() error {
-	err := writeKeys(*po.VerifyingKey, *po.ProvingKey, "norm_")
+	err := writeKeys(po.VerifyingKey, po.ProvingKey, "norm_")
 	if err != nil {
 		return err
 	}
@@ -146,13 +146,13 @@ func (po *NormalProof) ReadKeys() error {
 		return err
 	}
 
-	po.ProvingKey = &pk
-	po.VerifyingKey = &vk
+	po.ProvingKey = pk
+	po.VerifyingKey = vk
 
 	return nil
 }
 
-func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerField *big.Int, curveId ecc.ID) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
@@ -166,7 +166,7 @@ func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerFie
 		//normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *normalCcs)
 
 		normalCcsFile, err := os.Create("norm_ccs.cbor")
-		_, err = normalCcs.WriteTo(normalCcsFile)
+		_, err = (*normalCcs).WriteTo(normalCcsFile)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -195,7 +195,7 @@ func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerFie
 	}
 }
 
-func (po *NormalProof) readCircuitParams() (constraint.ConstraintSystem, error) {
+func (po *NormalProof) readCircuitParams() (*constraint.ConstraintSystem, error) {
 
 	normCcs := native_groth16.NewCS(txivc.InnerCurve)
 
@@ -209,7 +209,7 @@ func (po *NormalProof) readCircuitParams() (constraint.ConstraintSystem, error) 
 	}
 	ccsFile.Close()
 
-	return normCcs, nil
+	return &normCcs, nil
 }
 
 func (po *NormalProof) VerifyProof(witness *witness.Witness, proof *native_groth16.Proof) bool {
