@@ -44,23 +44,26 @@ import (
 )
 
 type innerCircuit struct {
-	X frontend.Variable
-	Y frontend.Variable `gnark:",public"`
-
-	pi []uints.U8
+	PreImage []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	//TxId     []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 }
 
 func (c *innerCircuit) Define(api frontend.API) error {
-	api.AssertIsEqual(c.X, c.Y)
 
-	h, err := sha2.New(api)
+	firstHash, err := calculateSha256(api, c.PreImage)
+	if err != nil {
+		return err
+	}
+	_, err = calculateSha256(api, firstHash)
 	if err != nil {
 		return err
 	}
 
-	h.Write(c.pi)
-
-	h.Sum()
+	//assert current public input matches calculated txId
+	//uapi, err := uints.New[uints.U32](api)
+	//for i := range circuit.CurrTxId {
+	//	uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
+	//}
 
 	return nil
 }
@@ -81,7 +84,9 @@ func (c *outerCircuitGI[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 
 func getInnerBasicCircuit(outerField, innerField *big.Int, xVal int, yVal int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof, error) {
 	//make the compiler happy
-	circuit := innerCircuit{}
+	circuit := innerCircuit{
+		//TxId: make([]uints.U8, 32),
+	}
 
 	innerCcs, err := frontend.Compile(innerField, r1cs.NewBuilder, &circuit)
 	if err != nil {
@@ -93,13 +98,13 @@ func getInnerBasicCircuit(outerField, innerField *big.Int, xVal int, yVal int) (
 		return nil, nil, nil, nil, err
 	}
 
-	hash, err := hex.DecodeString("hello")
+	pi, err := hex.DecodeString("hello")
+	//firstHash := sha256.Sum256(pi)
 
 	// inner proof
 	innerAssignment := &innerCircuit{
-		X:  xVal,
-		Y:  yVal,
-		pi: uints.NewU8Array(hash[:]),
+		PreImage: uints.NewU8Array(pi[:]),
+		//TxId:     uints.NewU8Array(firstHash[:]),
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, innerField)
 	if err != nil {
@@ -178,4 +183,25 @@ func TestRecursiveCircuit(t *testing.T) {
 	//err = groth16.Verify(outerProof, outerVk, outerPublicWitness)
 	//assert.NoError(err)
 
+}
+
+func calculateSha256(api frontend.API, preImage []uints.U8) ([]uints.U8, error) {
+	//instantiate a sha256 circuit
+	sha256, err := sha2.New(api)
+
+	if err != nil {
+		return nil, err
+	}
+
+	//write the preimage into the circuit
+	sha256.Write(preImage)
+
+	//use the circuit directly to calculate the double-sha256 hash
+	res := sha256.Sum()
+
+	//assert that the circuit calculated correct hash length . Maybe not needed.
+	if len(res) != 32 {
+		return nil, fmt.Errorf("not 32 bytes")
+	}
+	return res, nil
 }
