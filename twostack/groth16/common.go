@@ -73,20 +73,18 @@ func SetupBaseCase(txSize int, innerField *big.Int) (constraint.ConstraintSystem
 	return baseCcs, innerPK, innerVK, nil
 }
 
-func SetupNormalCase(outerField *big.Int, parentCcs *constraint.ConstraintSystem, parentVk *native_groth16.VerifyingKey) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
-
-	//previousVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](*parentVk)
-	//if err != nil {
-	//	fmt.Printf("Error compile normal circuit : %s", err)
-	//	return nil, nil, nil, err
-	//}
+func SetupNormalCase(prefixSize int, postfixSize int, outerField *big.Int, parentCcs *constraint.ConstraintSystem) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	outerCcs, err := frontend.Compile(outerField, r1cs.NewBuilder,
 		&Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
-			PreviousProof: groth16.PlaceholderProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](*parentCcs),
-			//PreviousVk:    previousVk,
+			PreviousProof:   groth16.PlaceholderProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](*parentCcs),
 			PreviousVk:      groth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](*parentCcs),
 			PreviousWitness: groth16.PlaceholderWitness[sw_bls12377.ScalarField](*parentCcs),
+
+			CurrTxPrefix: make([]frontend.Variable, prefixSize),
+			CurrTxPost:   make([]frontend.Variable, postfixSize),
+			PrevTxId:     make([]frontend.Variable, 32),
+			CurrTxId:     make([]frontend.Variable, 32),
 		})
 
 	if err != nil {

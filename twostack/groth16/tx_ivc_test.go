@@ -64,16 +64,10 @@ func TestNormalCase(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	//innerField := ecc.BLS24_315.ScalarField()
-	//outerField := ecc.BW6_633.ScalarField()
-	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
-	proverOptions := groth16.GetNativeProverOptions(outerField, innerField)
-
 	fullTxBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 
 	start := time.Now()
-	baseCcs, basePk, baseVk, err := SetupBaseCase(len(fullTxBytes), innerField)
+	baseCcs, basePk, baseVk, err := SetupBaseCase(len(fullTxBytes), ecc.BLS12_377.ScalarField())
 	end := time.Since(start)
 	fmt.Printf("Setup Base Case took : %s\n", end)
 
@@ -83,7 +77,7 @@ func TestNormalCase(t *testing.T) {
 	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, secondHash)
 
 	start = time.Now()
-	genesisProof, err := native_groth16.Prove(baseCcs, basePk, genesisWitness, proverOptions)
+	genesisProof, err := native_groth16.Prove(baseCcs, basePk, genesisWitness, groth16.GetNativeProverOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
 	end = time.Since(start)
 	fmt.Printf("Base Case Proof took : %s\n", end)
 
@@ -92,7 +86,7 @@ func TestNormalCase(t *testing.T) {
 	pubWitness, err := genesisWitness.Public()
 	assert.NoError(err)
 
-	err = native_groth16.Verify(genesisProof, baseVk, pubWitness, groth16.GetNativeVerifierOptions(outerField, innerField))
+	err = native_groth16.Verify(genesisProof, baseVk, pubWitness, groth16.GetNativeVerifierOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
 	assert.NoError(err)
 	fmt.Printf("Base Case Proof Verified!\n")
 
@@ -111,16 +105,16 @@ func TestNormalCase(t *testing.T) {
 	currTxId := sha256.Sum256(firstHash[:])
 	outerAssignment := CreateOuterAssignment(innerWitness, innerProof, innerVk, prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
 
-	outerWitness, err := frontend.NewWitness(&outerAssignment, outerField)
+	outerWitness, err := frontend.NewWitness(&outerAssignment, ecc.BW6_761.ScalarField())
 
 	start = time.Now()
-	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(outerField, &baseCcs, &baseVk)
+	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(len(prefixBytes), len(postFixBytes), ecc.BW6_761.ScalarField(), &baseCcs)
 	assert.NoError(err)
 	end = time.Since(start)
 	fmt.Printf("Normal case setup took : %s\n", end)
 
 	start = time.Now()
-	outerProof, err := native_groth16.Prove(outerCcs, outerProvingKey, outerWitness, groth16.GetNativeProverOptions(outerField, innerField))
+	outerProof, err := native_groth16.Prove(outerCcs, outerProvingKey, outerWitness, groth16.GetNativeProverOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
 	assert.NoError(err)
 	end = time.Since(start)
 	fmt.Printf("Normal case Proof took : %s\n", end)
@@ -129,16 +123,12 @@ func TestNormalCase(t *testing.T) {
 	start = time.Now()
 	publicWitness, err := outerWitness.Public()
 	assert.NoError(err)
-	err = native_groth16.Verify(outerProof, outerVerifyingKey, publicWitness, groth16.GetNativeVerifierOptions(outerField, innerField))
+	err = native_groth16.Verify(outerProof, outerVerifyingKey, publicWitness, groth16.GetNativeVerifierOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
 	assert.NoError(err)
 
 	end = time.Since(start)
 	fmt.Printf("Normal case verification took : %s\n", end)
 
-	//Let's do the first issuance , proof, vk
-	//gw, err := plonk.ValueOfWitness[sw_bls12377.ScalarField](genesisWitness)
-	//issuanceWitness, err := createFullWitness(gw, previousProof, vk, prefixBytes, postFixBytes, genesisPrevTxnIdBytes, genesisTxId, innerField)
-	//issuanceProof, err := native_plonk.Prove(innerCcs, provingKey, genesisWitness, plonk.GetNativeProverOptions(outerField, innerField))
 }
 
 func TestNormalCaseSuccint(t *testing.T) {
