@@ -45,8 +45,8 @@ import (
 )
 
 type innerCircuit struct {
-	PreImage [191]frontend.Variable //probably needs to provide the reversed version to save circuit space
-	TxId     [32]frontend.Variable  `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	PreImage []frontend.Variable //probably needs to provide the reversed version to save circuit space
+	TxId     []frontend.Variable `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 }
 
 func (c *innerCircuit) Define(api frontend.API) error {
@@ -57,25 +57,26 @@ func (c *innerCircuit) Define(api frontend.API) error {
 	for ndx := range c.PreImage {
 		preImageArr[ndx] = uapi.ByteValueOf(c.PreImage[ndx])
 	}
-	txIdArr := make([]uints.U8, len(c.PreImage))
-	for ndx := range c.TxId {
-		txIdArr[ndx] = uapi.ByteValueOf(c.TxId[ndx])
-	}
+
+	//possibly not needed ?
+	//txIdArr := make([]uints.U8, len(c.PreImage))
+	//for ndx := range c.TxId {
+	//	txIdArr[ndx] = uapi.ByteValueOf(c.TxId[ndx])
+	//}
 
 	firstHash, err := calculateSha256(api, preImageArr[:])
 	if err != nil {
 		return err
 	}
-	_, err = calculateSha256(api, firstHash)
+	calculatedTxId, err := calculateSha256(api, firstHash)
 	if err != nil {
 		return err
 	}
 
 	//assert current public input matches calculated txId
-	//uapi, err := uints.New[uints.U32](api)
-	//for i := range circuit.CurrTxId {
-	//	uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
-	//}
+	for i := range c.TxId {
+		uapi.ByteAssertEq(uapi.ByteValueOf(c.TxId[i]), calculatedTxId[i])
+	}
 
 	return nil
 }
@@ -91,13 +92,15 @@ type outerCircuitGI[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algeb
 func (c *outerCircuitGI[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	verifier, err := stdgroth16.NewVerifier[FR, G1El, G2El, GtEl](api)
 	err = verifier.AssertProof(c.VerifyingKey, c.Proof, c.InnerWitness)
+
 	return err
 }
 
 func getInnerBasicCircuit(outerField, innerField *big.Int, xVal int, yVal int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof, error) {
 	//make the compiler happy
 	circuit := innerCircuit{
-		//TxId: make([]uints.U8, 32),
+		TxId:     make([]frontend.Variable, 32),
+		PreImage: make([]frontend.Variable, 191),
 	}
 
 	innerCcs, err := frontend.Compile(innerField, r1cs.NewBuilder, &circuit)
@@ -112,16 +115,20 @@ func getInnerBasicCircuit(outerField, innerField *big.Int, xVal int, yVal int) (
 		return nil, nil, nil, nil, err
 	}
 
-	pi, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
-	firstHash := sha256.Sum256(pi)
+	preImage, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
+	firstHash := sha256.Sum256(preImage)
+	txIdHash := sha256.Sum256(firstHash[:])
 
 	// inner proof
-	innerAssignment := &innerCircuit{}
-	for ndx := range pi {
-		innerAssignment.PreImage[ndx] = pi[ndx]
+	innerAssignment := &innerCircuit{
+		TxId:     make([]frontend.Variable, 32),
+		PreImage: make([]frontend.Variable, 191),
+	}
+	for ndx := range preImage {
+		innerAssignment.PreImage[ndx] = preImage[ndx]
 	}
 	for ndx := range firstHash {
-		innerAssignment.TxId[ndx] = firstHash[ndx]
+		innerAssignment.TxId[ndx] = txIdHash[ndx]
 	}
 	//copy(innerAssignment.PreImage[:], uints.NewU8Array(pi))
 	//copy(innerAssignment.TxId[:], uints.NewU8Array(firstHash[:]))
