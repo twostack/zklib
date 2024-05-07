@@ -7,7 +7,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/uints"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	"github.com/consensys/gnark/test"
 	"testing"
@@ -18,15 +18,10 @@ func TestBaseCase(t *testing.T) {
 
 	assert := test.NewAssert(t)
 
-	innerField := ecc.BLS24_315.ScalarField()
-	outerField := ecc.BW6_633.ScalarField()
-
-	//innerField := ecc.BLS12_377.ScalarField()
-	//outerField := ecc.BLS12_377.ScalarField()
 	fullTxBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 
 	start := time.Now()
-	innerCcs, provingKey, verifyingKey, err := SetupBaseCase(len(fullTxBytes), innerField)
+	innerCcs, provingKey, verifyingKey, err := SetupBaseCase(len(fullTxBytes), ecc.BLS12_377.ScalarField())
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +38,7 @@ func TestBaseCase(t *testing.T) {
 
 	start = time.Now()
 	assert.NoError(err)
-	genesisProof, err := native_groth16.Prove(innerCcs, provingKey, genesisWitness, groth16.GetNativeProverOptions(outerField, innerField))
+	genesisProof, err := native_groth16.Prove(innerCcs, provingKey, genesisWitness, groth16.GetNativeProverOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
 	elapsed = time.Since(start)
 	fmt.Printf("The prover took %s to complete \n", elapsed)
 
@@ -51,7 +46,7 @@ func TestBaseCase(t *testing.T) {
 	assert.NoError(err)
 	publicWitness, err := genesisWitness.Public()
 	assert.NoError(err)
-	err = native_groth16.Verify(genesisProof, verifyingKey, publicWitness, groth16.GetNativeVerifierOptions(outerField, innerField))
+	err = native_groth16.Verify(genesisProof, verifyingKey, publicWitness, groth16.GetNativeVerifierOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
 	assert.NoError(err)
 }
 
@@ -102,9 +97,9 @@ func TestNormalCase(t *testing.T) {
 	fmt.Printf("Base Case Proof Verified!\n")
 
 	//outerField := ecc.BW6_761.ScalarField()
-	innerWitness, err := groth16.ValueOfWitness[ScalarField](pubWitness)
-	innerProof, err := groth16.ValueOfProof[G1Affine, G2Affine](genesisProof)
-	innerVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](baseVk)
+	innerWitness, err := groth16.ValueOfWitness[sw_bls12377.ScalarField](pubWitness)
+	innerProof, err := groth16.ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](genesisProof)
+	innerVk, err := groth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](baseVk)
 
 	//spending tx info. Re-use vars from genesis
 	prefixBytes, _ := hex.DecodeString("0200000001")
@@ -151,12 +146,6 @@ func TestNormalCaseSuccint(t *testing.T) {
 	//innerCcs, innerVK, innerWitness, innerProof := computeInnerProof(ecc.BLS12_377.ScalarField())
 	//computeInnerProofPlonk(ecc.BLS12_377.ScalarField())
 
-	//innerField := ecc.BLS24_315.ScalarField()
-	//outerField := ecc.BW6_633.ScalarField()
-	innerField := ecc.BLS12_377.ScalarField()
-	outerField := ecc.BW6_761.ScalarField()
-	proverOptions := groth16.GetNativeProverOptions(outerField, innerField)
-
 	//issuance txn
 	fullTxGenesisBytes, _ := hex.DecodeString("020000000190bc0a14e94cdd565265d79c4f9bed0f6404241f3fb69d6458b30b41611317f7000000004847304402204e643ff6ed0e3c3e1e83f3e2c74a9d0613849bb624c1d12351f1152cf91ebc1f02205deaa38e3f8f8e43d1979f999c03ffa65b9087c1a6545ecffa2b7898c042bcb241feffffff0200ca9a3b000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac40276bee000000001976a9142dbbeab87bd7a8fca8b2761e5d798dfd76d5af4988ac6f000000")
 
@@ -169,24 +158,23 @@ func TestNormalCaseSuccint(t *testing.T) {
 
 	//innerCcs, innerVK, innerWitness, innerProof :=
 	assert := test.NewAssert(t)
-	baseCcs, basePk, baseVk, err := SetupBaseCase(len(fullTxGenesisBytes), innerField)
+	baseCcs, basePk, baseVk, err := SetupBaseCase(len(fullTxGenesisBytes), ecc.BLS12_377.ScalarField())
 
-	innerProof, err := native_groth16.Prove(baseCcs, basePk, genesisWitness, proverOptions)
+	innerProof, err := native_groth16.Prove(baseCcs, basePk, genesisWitness, groth16.GetNativeProverOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
 	//innerProof, err := zklib.CreateBaseCaseProof(&NormalProofInfo{})
 	assert.NoError(err)
 
-	circuitVk, err := groth16.ValueOfVerifyingKey[G1Affine, G2Affine, GTEl](baseVk)
+	circuitVk, err := groth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](baseVk)
 	assert.NoError(err)
-	circuitWitness, err := groth16.ValueOfWitness[ScalarField](genesisWitness)
+	circuitWitness, err := groth16.ValueOfWitness[sw_bls12377.ScalarField](genesisWitness)
 	assert.NoError(err)
-	circuitProof, err := groth16.ValueOfProof[G1Affine, G2Affine](innerProof)
+	circuitProof, err := groth16.ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
 	assert.NoError(err)
 
-	outerCircuit := &Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
-		PreviousProof: groth16.PlaceholderProof[G1Affine, G2Affine](baseCcs),
-		//PreviousVk:    circuitVk,
-		PreviousVk:      groth16.PlaceholderVerifyingKey[G1Affine, G2Affine, GTEl](baseCcs),
-		PreviousWitness: groth16.PlaceholderWitness[ScalarField](baseCcs),
+	outerCircuit := &Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
+		PreviousProof:   groth16.PlaceholderProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](baseCcs),
+		PreviousVk:      groth16.PlaceholderVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](baseCcs),
+		PreviousWitness: groth16.PlaceholderWitness[sw_bls12377.ScalarField](baseCcs),
 	}
 
 	//spending transaction
@@ -199,22 +187,34 @@ func TestNormalCaseSuccint(t *testing.T) {
 	firstHash = sha256.Sum256(fullTxBytes)
 	currTxId := sha256.Sum256(firstHash[:])
 
-	outerAssignment := Sha256Circuit[ScalarField, G1Affine, G2Affine, GTEl]{
+	outerAssignment := Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		PreviousWitness: circuitWitness,
 		PreviousProof:   circuitProof,
 		PreviousVk:      circuitVk,
-	}
 
-	copy(outerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
-	copy(outerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
-	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
-	copy(outerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+		CurrTxPrefix: make([]frontend.Variable, len(prefixBytes)),
+		CurrTxPost:   make([]frontend.Variable, len(postFixBytes)),
+		PrevTxId:     make([]frontend.Variable, len(prevTxnIdBytes)),
+		CurrTxId:     make([]frontend.Variable, len(currTxId)),
+	}
+	for ndx := range prefixBytes {
+		outerAssignment.CurrTxPrefix[ndx] = prefixBytes[ndx]
+	}
+	for ndx := range postFixBytes {
+		outerAssignment.CurrTxPost[ndx] = postFixBytes[ndx]
+	}
+	for ndx := range prevTxnIdBytes {
+		outerAssignment.PrevTxId[ndx] = prevTxnIdBytes[ndx]
+	}
+	for ndx := range currTxId {
+		outerAssignment.CurrTxId[ndx] = currTxId[ndx]
+	}
 
 	//pubWitness, err := CreateBaseCaseLightWitness(genesisTxId[:], innerField)
 	//pw, err := groth16.ValueOfWitness[ScalarField](*pubWitness)
 	//outerAssignment := CreateOuterAssignment(pw, circuitProof, circuitVk, prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
 
-	err = test.IsSolved(outerCircuit, &outerAssignment, outerField)
+	err = test.IsSolved(outerCircuit, &outerAssignment, ecc.BW6_761.ScalarField())
 	assert.NoError(err)
 
 	//now follow-up with a first-spend and proof of the previous token

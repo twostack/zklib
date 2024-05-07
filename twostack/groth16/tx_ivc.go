@@ -12,20 +12,33 @@ import (
 /*
 * Base case to generate initial proof to get things started
  */
-type Sha256CircuitBaseCase[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
-	RawTx []uints.U8
+type Sha256CircuitBaseCase struct {
+	RawTx []frontend.Variable
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	CurrTxId []frontend.Variable `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 }
 
 /*
 * Base case implementation
  */
-func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
+func (circuit *Sha256CircuitBaseCase) Define(api frontend.API) error {
+	uapi, err := uints.New[uints.U32](api)
+
+	//assign the pre-image for in-circuit sha256d() calculation
+	rawTxArr := make([]uints.U8, len(circuit.RawTx))
+	for ndx := range circuit.RawTx {
+		rawTxArr[ndx] = uapi.ByteValueOf(circuit.RawTx[ndx])
+	}
+
+	//assign the txid ? maybe not needed
+	//txIdArr := make([]uints.U8, len(circuit.RawTx))
+	//for ndx := range circuit.CurrTxId {
+	//	txIdArr[ndx] = uapi.ByteValueOf(circuit.CurrTxId[ndx])
+	//}
 
 	//do double-sha256
-	firstHash, err := calculateSha256(api, circuit.RawTx)
+	firstHash, err := calculateSha256(api, rawTxArr)
 	if err != nil {
 		return err
 	}
@@ -35,9 +48,8 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
 	}
 
 	//assert current public input matches calculated txId
-	uapi, err := uints.New[uints.U32](api)
 	for i := range circuit.CurrTxId {
-		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
+		uapi.ByteAssertEq(uapi.ByteValueOf(circuit.CurrTxId[i]), calculatedTxId[i])
 	}
 
 	return nil
@@ -48,15 +60,15 @@ func (circuit *Sha256CircuitBaseCase[FR, G1El, G2El, GtEl]) Define(api frontend.
  */
 type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebra.G2ElementT, GtEl algebra.GtElementT] struct {
 	PreviousProof   stdgroth16.Proof[G1El, G2El]
-	PreviousVk      stdgroth16.VerifyingKey[G1El, G2El, GtEl] `gnark:"-"` // constant verification key
+	PreviousVk      stdgroth16.VerifyingKey[G1El, G2El, GtEl]
 	PreviousWitness stdgroth16.Witness[FR]
 
-	CurrTxPrefix []uints.U8 //5
-	PrevTxId     []uints.U8 //32
-	CurrTxPost   []uints.U8 //188
+	CurrTxPrefix []frontend.Variable //5
+	PrevTxId     []frontend.Variable //32
+	CurrTxPost   []frontend.Variable //188
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
-	CurrTxId []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	CurrTxId []frontend.Variable `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 }
 
 func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
@@ -66,7 +78,7 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 		return err
 	}
 
-	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdgroth16.WithCompleteArithmetic())
+	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness)
 	if err != nil {
 		return err
 	}
@@ -85,8 +97,13 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 	fullTx := append(circuit.CurrTxPrefix[:], circuit.PrevTxId[:]...)
 	fullTx = append(fullTx, circuit.CurrTxPost[:]...)
 
+	rawTxArr := make([]uints.U8, len(fullTx))
+	for ndx := range fullTx {
+		rawTxArr[ndx] = uapi.ByteValueOf(fullTx[ndx])
+	}
+
 	//do double-sha256
-	firstHash, err := calculateSha256(api, fullTx)
+	firstHash, err := calculateSha256(api, rawTxArr)
 	if err != nil {
 		return fmt.Errorf("Failed to calculate first round sha256")
 	}
@@ -99,7 +116,7 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 	//and compare them to the expected digest, asserting
 	//that the claimed CurrTxId matches that of the provided rawtx
 	for i := range circuit.CurrTxId {
-		uapi.ByteAssertEq(circuit.CurrTxId[i], calculatedTxId[i])
+		uapi.ByteAssertEq(uapi.ByteValueOf(circuit.CurrTxId[i]), calculatedTxId[i])
 	}
 
 	return nil
