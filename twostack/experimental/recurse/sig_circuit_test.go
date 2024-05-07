@@ -8,6 +8,7 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/uints"
 	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
+	"github.com/consensys/gnark/std/recursion/plonk"
 	"github.com/consensys/gnark/test"
 	"github.com/twostack/zklib/twostack/experimental"
 	"testing"
