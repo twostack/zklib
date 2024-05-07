@@ -24,6 +24,7 @@ Currently fails :
 At end of AssertProof() method it fails to match the pairings
 */
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -44,13 +45,24 @@ import (
 )
 
 type innerCircuit struct {
-	PreImage []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
-	//TxId     []uints.U8 `gnark:",public"` //probably needs to provide the reversed version to save circuit space
+	PreImage [191]frontend.Variable //probably needs to provide the reversed version to save circuit space
+	TxId     [32]frontend.Variable  `gnark:",public"` //probably needs to provide the reversed version to save circuit space
 }
 
 func (c *innerCircuit) Define(api frontend.API) error {
 
-	firstHash, err := calculateSha256(api, c.PreImage)
+	uapi, err := uints.New[uints.U32](api)
+	preImageArr := make([]uints.U8, len(c.PreImage))
+
+	for ndx := range c.PreImage {
+		preImageArr[ndx] = uapi.ByteValueOf(c.PreImage[ndx])
+	}
+	txIdArr := make([]uints.U8, len(c.PreImage))
+	for ndx := range c.TxId {
+		txIdArr[ndx] = uapi.ByteValueOf(c.TxId[ndx])
+	}
+
+	firstHash, err := calculateSha256(api, preImageArr[:])
 	if err != nil {
 		return err
 	}
@@ -90,36 +102,47 @@ func getInnerBasicCircuit(outerField, innerField *big.Int, xVal int, yVal int) (
 
 	innerCcs, err := frontend.Compile(innerField, r1cs.NewBuilder, &circuit)
 	if err != nil {
+		fmt.Println("One")
 		return nil, nil, nil, nil, err
 	}
 
 	innerPK, innerVK, err := groth16.Setup(innerCcs)
 	if err != nil {
+		fmt.Println("Two")
 		return nil, nil, nil, nil, err
 	}
 
-	pi, err := hex.DecodeString("hello")
-	//firstHash := sha256.Sum256(pi)
+	pi, _ := hex.DecodeString("0200000001ae4b7f1769154bb04e9c666a4dbb31eb2ec0c4e01d965cbb1ca4574e7ed40a19000000004847304402200e993f6bc2319615b662ac7f5882bc78dc35101d1b110a0edf2fd79dea2206c2022017e352e87390227a39b7eae6510cdff9e1cedc8a517e811b90ac6b6fdc8d7d0441feffffff0200ca9a3b000000001976a914783b608b9278a187641d047c14dbf63e1be5bc8888ac00196bee000000001976a9142bfccc428186e69fc94fde6d7396f19482dd5a7988ac65000000")
+	firstHash := sha256.Sum256(pi)
 
 	// inner proof
-	innerAssignment := &innerCircuit{
-		PreImage: uints.NewU8Array(pi[:]),
-		//TxId:     uints.NewU8Array(firstHash[:]),
+	innerAssignment := &innerCircuit{}
+	for ndx := range pi {
+		innerAssignment.PreImage[ndx] = pi[ndx]
 	}
+	for ndx := range firstHash {
+		innerAssignment.TxId[ndx] = firstHash[ndx]
+	}
+	//copy(innerAssignment.PreImage[:], uints.NewU8Array(pi))
+	//copy(innerAssignment.TxId[:], uints.NewU8Array(firstHash[:]))
 	innerWitness, err := frontend.NewWitness(innerAssignment, innerField)
 	if err != nil {
+		fmt.Println("Three")
 		return nil, nil, nil, nil, err
 	}
 	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, stdgroth16.GetNativeProverOptions(outerField, innerField))
 	if err != nil {
+		fmt.Println("Five")
 		return nil, nil, nil, nil, err
 	}
 	innerPubWitness, err := innerWitness.Public()
 	if err != nil {
+		fmt.Println("Six")
 		return nil, nil, nil, nil, err
 	}
 	err = groth16.Verify(innerProof, innerVK, innerPubWitness, stdgroth16.GetNativeVerifierOptions(outerField, innerField))
 	if err != nil {
+		fmt.Println("seven")
 		return nil, nil, nil, nil, err
 	}
 
@@ -135,7 +158,7 @@ func TestRecursiveCircuit(t *testing.T) {
 	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
 	assert.NoError(err)
 	circuitPubWitness, err := stdgroth16.ValueOfWitness[sw_bls12377.ScalarField](innerPubWitness)
-	fmt.Printf("nbInnerPubWitness:%v, witness:%v\n", len(circuitPubWitness.Public), circuitPubWitness.Public)
+	//fmt.Printf("nbInnerPubWitness:%v, witness:%v\n", len(circuitPubWitness.Public), circuitPubWitness.Public)
 
 	assert.NoError(err)
 	circuitProof, err := stdgroth16.ValueOfProof[sw_bls12377.G1Affine, sw_bls12377.G2Affine](innerProof)
@@ -187,17 +210,17 @@ func TestRecursiveCircuit(t *testing.T) {
 
 func calculateSha256(api frontend.API, preImage []uints.U8) ([]uints.U8, error) {
 	//instantiate a sha256 circuit
-	sha256, err := sha2.New(api)
+	h, err := sha2.New(api)
 
 	if err != nil {
 		return nil, err
 	}
 
 	//write the preimage into the circuit
-	sha256.Write(preImage)
+	h.Write(preImage)
 
 	//use the circuit directly to calculate the double-sha256 hash
-	res := sha256.Sum()
+	res := h.Sum()
 
 	//assert that the circuit calculated correct hash length . Maybe not needed.
 	if len(res) != 32 {
