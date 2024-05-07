@@ -24,6 +24,7 @@ Currently fails :
 At end of AssertProof() method it fails to match the pairings
 */
 import (
+	"encoding/hex"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -33,7 +34,9 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/std/algebra"
 	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
+	"github.com/consensys/gnark/std/hash/sha2"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/math/uints"
 	stdgroth16 "github.com/consensys/gnark/std/recursion/groth16"
 	"github.com/consensys/gnark/test"
 	"math/big"
@@ -43,10 +46,21 @@ import (
 type innerCircuit struct {
 	X frontend.Variable
 	Y frontend.Variable `gnark:",public"`
+
+	pi []uints.U8
 }
 
 func (c *innerCircuit) Define(api frontend.API) error {
 	api.AssertIsEqual(c.X, c.Y)
+
+	h, err := sha2.New(api)
+	if err != nil {
+		return err
+	}
+
+	h.Write(c.pi)
+
+	h.Sum()
 
 	return nil
 }
@@ -65,11 +79,11 @@ func (c *outerCircuitGI[FR, G1El, G2El, GtEl]) Define(api frontend.API) error {
 	return err
 }
 
-func getInnerBasicCircuit(field *big.Int, xVal int, yVal int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof, error) {
+func getInnerBasicCircuit(outerField, innerField *big.Int, xVal int, yVal int) (constraint.ConstraintSystem, groth16.VerifyingKey, witness.Witness, groth16.Proof, error) {
 	//make the compiler happy
 	circuit := innerCircuit{}
 
-	innerCcs, err := frontend.Compile(field, r1cs.NewBuilder, &circuit)
+	innerCcs, err := frontend.Compile(innerField, r1cs.NewBuilder, &circuit)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -79,16 +93,19 @@ func getInnerBasicCircuit(field *big.Int, xVal int, yVal int) (constraint.Constr
 		return nil, nil, nil, nil, err
 	}
 
+	hash, err := hex.DecodeString("hello")
+
 	// inner proof
 	innerAssignment := &innerCircuit{
-		X: xVal,
-		Y: yVal,
+		X:  xVal,
+		Y:  yVal,
+		pi: uints.NewU8Array(hash[:]),
 	}
-	innerWitness, err := frontend.NewWitness(innerAssignment, field)
+	innerWitness, err := frontend.NewWitness(innerAssignment, innerField)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness)
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, stdgroth16.GetNativeProverOptions(outerField, innerField))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -96,7 +113,7 @@ func getInnerBasicCircuit(field *big.Int, xVal int, yVal int) (constraint.Constr
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	err = groth16.Verify(innerProof, innerVK, innerPubWitness)
+	err = groth16.Verify(innerProof, innerVK, innerPubWitness, stdgroth16.GetNativeVerifierOptions(outerField, innerField))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -107,7 +124,7 @@ func getInnerBasicCircuit(field *big.Int, xVal int, yVal int) (constraint.Constr
 func TestRecursiveCircuit(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	innerCcs, innerVK, innerPubWitness, innerProof, err := getInnerBasicCircuit(ecc.BLS12_377.ScalarField(), 5, 5)
+	innerCcs, innerVK, innerPubWitness, innerProof, err := getInnerBasicCircuit(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField(), 5, 5)
 	assert.NoError(err)
 	// initialize the witness elements
 	circuitVk, err := stdgroth16.ValueOfVerifyingKey[sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT](innerVK)
