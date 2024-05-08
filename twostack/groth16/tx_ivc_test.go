@@ -34,7 +34,7 @@ func TestBaseCase(t *testing.T) {
 	//fmt.Println(hex.EncodeToString(genesisTxId[:]))
 	// create full genesis witness (placeholders, prevTxnIdBytes is empty
 	//vk, err := plonk.ValueOfVerifyingKey[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine](verifyingKey)
-	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, genesisTxId)
+	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, genesisTxId[:])
 
 	start = time.Now()
 	assert.NoError(err)
@@ -74,7 +74,7 @@ func TestNormalCase(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxBytes)
 	secondHash := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, secondHash)
+	genesisWitness, err := CreateBaseCaseFullWitness(fullTxBytes, secondHash[:])
 
 	start = time.Now()
 	genesisProof, err := native_groth16.Prove(baseCcs, basePk, genesisWitness, groth16.GetNativeProverOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField()))
@@ -108,7 +108,7 @@ func TestNormalCase(t *testing.T) {
 	outerWitness, err := frontend.NewWitness(&outerAssignment, ecc.BW6_761.ScalarField())
 
 	start = time.Now()
-	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(len(prefixBytes), len(postFixBytes), ecc.BW6_761.ScalarField(), &baseCcs)
+	outerCcs, outerProvingKey, outerVerifyingKey, err := SetupNormalCase(len(prefixBytes), len(postFixBytes), ecc.BW6_761.ScalarField(), baseCcs)
 	assert.NoError(err)
 	end = time.Since(start)
 	fmt.Printf("Normal case setup took : %s\n", end)
@@ -144,7 +144,7 @@ func TestNormalCaseSuccint(t *testing.T) {
 	txIdStr := hex.EncodeToString(genesisTxId[:])
 	fmt.Printf("TxID of Genesis : [%s]\n", txIdStr)
 
-	genesisWitness, err := CreateBaseCaseFullWitness(fullTxGenesisBytes, genesisTxId)
+	genesisWitness, err := CreateBaseCaseFullWitness(fullTxGenesisBytes, genesisTxId[:])
 
 	//innerCcs, innerVK, innerWitness, innerProof :=
 	assert := test.NewAssert(t)

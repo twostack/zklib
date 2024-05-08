@@ -2,9 +2,7 @@ package txivc
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -116,12 +114,11 @@ func CreateBaseCaseLightWitness(
 		CurrTxId: make([]frontend.Variable, 32),
 	}
 
-	//copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
 	for ndx, entry := range currTxId {
 		innerAssignment.CurrTxId[ndx] = entry
 	}
 
-	innerWitness, err := frontend.NewWitness(&innerAssignment, innerField)
+	innerWitness, err := frontend.NewWitness(&innerAssignment, innerField, frontend.PublicOnly())
 	if err != nil {
 		return nil, err
 	}
@@ -187,8 +184,11 @@ func CreateNormalLightWitness(txId []byte, outerField *big.Int) (witness.Witness
 		CurrTxId: make([]frontend.Variable, 32),
 	}
 
-	lightWitness, err := frontend.NewWitness(&outerAssignment, outerField)
+	for ndx := range txId {
+		outerAssignment.CurrTxId[ndx] = txId[ndx]
+	}
 
+	lightWitness, err := frontend.NewWitness(&outerAssignment, outerField, frontend.PublicOnly())
 	if err != nil {
 		return nil, err
 	}
@@ -230,10 +230,9 @@ func CreateOuterAssignment(
 	return outerAssignment
 }
 
-func VerifyProof(genesisWitness witness.Witness, genesisProof native_groth16.Proof, verifyingKey native_groth16.VerifyingKey) bool {
-	publicWitness, err := genesisWitness.Public()
+func VerifyProof(pubWitness witness.Witness, genesisProof native_groth16.Proof, verifyingKey native_groth16.VerifyingKey) bool {
 	verifierOptions := groth16.GetNativeVerifierOptions(ecc.BW6_761.ScalarField(), ecc.BLS12_377.ScalarField())
-	err = native_groth16.Verify(genesisProof, verifyingKey, publicWitness, verifierOptions)
+	err := native_groth16.Verify(genesisProof, verifyingKey, pubWitness, verifierOptions)
 	if err != nil {
 		fmt.Printf("Fail on base case verification! %s\n", err)
 		return false
@@ -247,6 +246,7 @@ func ComputeProof(ccs constraint.ConstraintSystem, provingKey native_groth16.Pro
 	return native_groth16.Prove(ccs, provingKey, outerWitness, proverOptions)
 }
 
+/*
 func CreateNormalCaseProof(
 	baseCcs constraint.ConstraintSystem,
 	baseVk native_groth16.VerifyingKey,
@@ -283,15 +283,13 @@ func CreateNormalCaseProof(
 		}
 
 	} else {
-		/*
-			prevTxCcs = *ps.normalCcs
-			prevTxVk = *ps.normalVerifyingKey
-			prevTxProof = native_groth16.NewProof(normalProof.CurveId)
-			prevTxWitness, err = txivc.CreateNormalLightWitness(currTxId[:], normalProof.InnerField)
-			if err != nil {
-				return "", err
-			}
-		*/
+			//prevTxCcs = *ps.normalCcs
+			//prevTxVk = *ps.normalVerifyingKey
+			//prevTxProof = native_groth16.NewProof(normalProof.CurveId)
+			//prevTxWitness, err = txivc.CreateNormalLightWitness(currTxId[:], normalProof.InnerField)
+			//if err != nil {
+			//	return "", err
+			//}
 		return "proof with non-base case txn is not implemented yet", nil
 	}
 
@@ -309,7 +307,7 @@ func CreateNormalCaseProof(
 		prefixBytes,
 		prevTxnId,
 		postfixBytes,
-		fullTxBytes,
+		currTxId[:],
 		outerField,
 	)
 	if err != nil {
@@ -331,6 +329,8 @@ func CreateNormalCaseProof(
 	return string(jsonBytes), nil
 
 }
+
+*/
 
 /*
 Split a Raw Transaction into it's component "prefix", "suffix" and "postfix" parts

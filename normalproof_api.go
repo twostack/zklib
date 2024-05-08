@@ -79,7 +79,12 @@ func (po *NormalProof) ComputeProof(fullWitness witness.Witness) (native_groth16
 }
 
 func (po *NormalProof) CreateLightWitness(txId []byte) (*witness.Witness, error) {
-	return txivc.CreateNormalLightWitness(txId, po.InnerField)
+	res, err := txivc.CreateNormalLightWitness(txId, po.InnerField)
+	if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
 }
 
 func (po *NormalProof) CreateFullWitness(

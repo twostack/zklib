@@ -267,10 +267,10 @@ func readKeys(prefix string, curveId ecc.ID) (native_groth16.VerifyingKey, nativ
 	return innerVK, innerPK, nil
 }
 
-func (ps *ProofSystem) CreateNormalCaseProof(normalInfo *txivc.NormalProofInfo) (string, error) {
-	//outerAssignment := normalProof.CreateOuterAssignment()
-	return txivc.CreateNormalCaseProof(ps.baseCcs, ps.baseVerifyingKey, ps.baseCurveId, ps.InnerField, ps.OuterField, ps.normalProvingKey, normalInfo)
-}
+//func (ps *ProofSystem) CreateNormalCaseProof(normalInfo *txivc.NormalProofInfo) (string, error) {
+//	//outerAssignment := normalProof.CreateOuterAssignment()
+//	return txivc.CreateNormalCaseProof(ps.baseCcs, ps.baseVerifyingKey, ps.baseCurveId, ps.InnerField, ps.OuterField, ps.normalProvingKey, normalInfo)
+//}
 
 func (ps *ProofSystem) CreateBaseCaseProof(pInfo txivc.BaseProofInfo) (string, error) {
 

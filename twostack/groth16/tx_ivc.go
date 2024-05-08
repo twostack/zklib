@@ -78,7 +78,7 @@ func (circuit *Sha256Circuit[FR, G1El, G2El, GtEl]) Define(api frontend.API) err
 		return err
 	}
 
-	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness)
+	err = verifier.AssertProof(circuit.PreviousVk, circuit.PreviousProof, circuit.PreviousWitness, stdgroth16.WithCompleteArithmetic())
 	if err != nil {
 		return err
 	}
