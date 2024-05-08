@@ -21,7 +21,7 @@ func TestComputeNormalProof(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := txivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId)
+	genesisWitness, err := txivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId[:])
 
 	proof, err := bp.ComputeProof(genesisWitness)
 	assert.NoError(err)
@@ -35,7 +35,7 @@ func TestComputeNormalProof(t *testing.T) {
 	//publicWitness, err := genesisWitness.Public()
 	assert.NoError(err)
 
-	isVerified := bp.VerifyProof(publicBaseWitness, &proof)
+	isVerified := bp.VerifyProof(&publicBaseWitness, &proof)
 	assert.True(isVerified)
 
 	/***
@@ -43,10 +43,6 @@ func TestComputeNormalProof(t *testing.T) {
 
 	Start Normal Proof
 	*/
-
-	np, err := bootNormalProof(bp)
-	assert.NoError(err)
-
 	prefixBytes, _ := hex.DecodeString("0200000001")
 	prevTxnIdBytes, _ := hex.DecodeString("faf3013aab53ae122e6cfdef7720c7a785fed4ce7f8f3dd19379f31e62651c71")
 	postFixBytes, _ := hex.DecodeString("000000006a47304402200ce76e906d995091f28ca40f4579c358bce832cd0d5c5535e4736e4444f6ba2602204fa80867c48e6016b3fa013633ad87203a18487786d8758ee3fe8a6ad5efdf06412103f368e789ce7c6152cc3a36f9c68e69b93934ce0b8596f9cd8032061d5feff4fffeffffff020065cd1d000000001976a914662db6c1a68cdf035bfb9c6580550eb3520caa9d88ac1e64cd1d000000001976a914ce3e1e6345551bed999b48ab8b2ebb1ca880bcda88ac70000000")
@@ -54,7 +50,10 @@ func TestComputeNormalProof(t *testing.T) {
 	firstHash = sha256.Sum256(fullTxBytes)
 	currTxId := sha256.Sum256(firstHash[:])
 
-	outerWitness, err := np.CreateFullWitness(*publicBaseWitness, proof, *bp.VerifyingKey, prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
+	np, err := bootNormalProof(len(prefixBytes), len(postFixBytes), bp)
+	assert.NoError(err)
+
+	outerWitness, err := np.CreateFullWitness(publicBaseWitness, proof, *bp.VerifyingKey, prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
 	assert.NoError(err)
 
 	outerProof, err := np.ComputeProof(*outerWitness)

@@ -1,7 +1,6 @@
 package zklib
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
@@ -9,7 +8,8 @@ import (
 	native_groth16 "github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/std/math/uints"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/std/algebra/native/sw_bls12377"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	txivc "github.com/twostack/zklib/twostack/groth16"
 	"math/big"
@@ -33,7 +33,7 @@ type NormalProof struct {
 	BaseProofObj *BaseProof
 }
 
-func NewNormalProof(baseProof *BaseProof) (*NormalProof, error) {
+func NewNormalProof(prefixSize int, postfixSize int, baseProof *BaseProof) (*NormalProof, error) {
 
 	po := &NormalProof{}
 
@@ -48,15 +48,15 @@ func NewNormalProof(baseProof *BaseProof) (*NormalProof, error) {
 	po.verifierOptions = groth16.GetNativeVerifierOptions(po.OuterField, po.InnerField)
 	po.proverOptions = groth16.GetNativeProverOptions(po.OuterField, po.InnerField)
 
-	normalCcs, provingKey, verifyingKey, err := po.readSetupParams(po.OuterField, po.CurveId)
+	normalCcs, provingKey, verifyingKey, err := po.readSetupParams(prefixSize, postfixSize, po.OuterField, po.CurveId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	po.Ccs = &normalCcs
-	po.ProvingKey = &provingKey
-	po.VerifyingKey = &verifyingKey
+	po.Ccs = normalCcs
+	po.ProvingKey = provingKey
+	po.VerifyingKey = verifyingKey
 
 	return po, nil
 }
@@ -101,27 +101,37 @@ func (po *NormalProof) createOuterAssignment(
 	circuitWitness groth16.Witness[txivc.ScalarField],
 	circuitProof groth16.Proof[txivc.G1Affine, txivc.G2Affine],
 	verifyingKey groth16.VerifyingKey[txivc.G1Affine, txivc.G2Affine, txivc.GTEl],
-	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, fullTxBytes []byte) txivc.Sha256Circuit[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl] {
+	prefixBytes []byte, prevTxnIdBytes []byte, postFixBytes []byte, currTxId []byte) txivc.Sha256Circuit[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl] {
 
-	outerAssignment := txivc.Sha256Circuit[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
+	outerAssignment := txivc.Sha256Circuit[sw_bls12377.ScalarField, sw_bls12377.G1Affine, sw_bls12377.G2Affine, sw_bls12377.GT]{
 		PreviousWitness: circuitWitness,
 		PreviousProof:   circuitProof,
 		PreviousVk:      verifyingKey,
+
+		CurrTxPrefix: make([]frontend.Variable, len(prefixBytes)),
+		CurrTxPost:   make([]frontend.Variable, len(postFixBytes)),
+		PrevTxId:     make([]frontend.Variable, len(prevTxnIdBytes)),
+		CurrTxId:     make([]frontend.Variable, len(currTxId)),
 	}
 
-	firstHash := sha256.Sum256(fullTxBytes)
-	currTxId := sha256.Sum256(firstHash[:])
-
-	copy(outerAssignment.CurrTxPrefix[:], uints.NewU8Array(prefixBytes))
-	copy(outerAssignment.CurrTxPost[:], uints.NewU8Array(postFixBytes))
-	copy(outerAssignment.PrevTxId[:], uints.NewU8Array(prevTxnIdBytes))
-	copy(outerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
+	for ndx := range prefixBytes {
+		outerAssignment.CurrTxPrefix[ndx] = prefixBytes[ndx]
+	}
+	for ndx := range postFixBytes {
+		outerAssignment.CurrTxPost[ndx] = postFixBytes[ndx]
+	}
+	for ndx := range prevTxnIdBytes {
+		outerAssignment.PrevTxId[ndx] = prevTxnIdBytes[ndx]
+	}
+	for ndx := range currTxId {
+		outerAssignment.CurrTxId[ndx] = currTxId[ndx]
+	}
 
 	return outerAssignment
 }
 
 func (po *NormalProof) WriteKeys() error {
-	err := writeKeys(*po.VerifyingKey, *po.ProvingKey, "norm_")
+	err := writeKeys(po.VerifyingKey, po.ProvingKey, "norm_")
 	if err != nil {
 		return err
 	}
@@ -136,18 +146,18 @@ func (po *NormalProof) ReadKeys() error {
 		return err
 	}
 
-	po.ProvingKey = &pk
-	po.VerifyingKey = &vk
+	po.ProvingKey = pk
+	po.VerifyingKey = vk
 
 	return nil
 }
 
-func (po *NormalProof) readSetupParams(outerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerField *big.Int, curveId ecc.ID) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		//setup normal case for base parent VK
-		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, po.BaseProofObj.Ccs, po.BaseProofObj.VerifyingKey)
+		normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(prefixSize, postfixSize, outerField, po.BaseProofObj.Ccs)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -156,7 +166,7 @@ func (po *NormalProof) readSetupParams(outerField *big.Int, curveId ecc.ID) (con
 		//normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *normalCcs)
 
 		normalCcsFile, err := os.Create("norm_ccs.cbor")
-		_, err = normalCcs.WriteTo(normalCcsFile)
+		_, err = (*normalCcs).WriteTo(normalCcsFile)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -185,7 +195,7 @@ func (po *NormalProof) readSetupParams(outerField *big.Int, curveId ecc.ID) (con
 	}
 }
 
-func (po *NormalProof) readCircuitParams() (constraint.ConstraintSystem, error) {
+func (po *NormalProof) readCircuitParams() (*constraint.ConstraintSystem, error) {
 
 	normCcs := native_groth16.NewCS(txivc.InnerCurve)
 
@@ -199,7 +209,7 @@ func (po *NormalProof) readCircuitParams() (constraint.ConstraintSystem, error) 
 	}
 	ccsFile.Close()
 
-	return normCcs, nil
+	return &normCcs, nil
 }
 
 func (po *NormalProof) VerifyProof(witness *witness.Witness, proof *native_groth16.Proof) bool {

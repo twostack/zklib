@@ -9,7 +9,6 @@ import (
 	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/std/math/uints"
 	"github.com/consensys/gnark/std/recursion/groth16"
 	txivc "github.com/twostack/zklib/twostack/groth16"
 	"math/big"
@@ -49,21 +48,21 @@ func NewBaseProof(baseTxSize int) (*BaseProof, error) {
 		return nil, err
 	}
 
-	po.Ccs = &baseCcs
-	po.ProvingKey = &provingKey
-	po.VerifyingKey = &verifyingKey
+	po.Ccs = baseCcs
+	po.ProvingKey = provingKey
+	po.VerifyingKey = verifyingKey
 
 	return po, nil
 }
 
-func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
+func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("base_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		baseCcs, provingKey, verifyingKey, err := txivc.SetupBaseCase(txSize, innerField)
 
 		baseccsFile, err := os.Create("base_ccs.cbor")
-		_, err = baseCcs.WriteTo(baseccsFile)
+		_, err = (*baseCcs).WriteTo(baseccsFile)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -92,7 +91,7 @@ func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ec
 	}
 }
 
-func (po *BaseProof) readCircuitParams() (constraint.ConstraintSystem, error) {
+func (po *BaseProof) readCircuitParams() (*constraint.ConstraintSystem, error) {
 
 	baseCcs := native_groth16.NewCS(txivc.InnerCurve)
 
@@ -106,7 +105,7 @@ func (po *BaseProof) readCircuitParams() (constraint.ConstraintSystem, error) {
 	}
 	ccsFile.Close()
 
-	return baseCcs, nil
+	return &baseCcs, nil
 }
 
 //func (po *BaseProof) SetupKeys() error {
@@ -143,30 +142,33 @@ func (po *BaseProof) VerifyProof(witness *witness.Witness, proof *native_groth16
 	return true
 }
 
+/*
+FIXME: This is duplicated from groth16/common.go
+*/
 func (po *BaseProof) CreateBaseCaseWitness(
 	rawTxBytes []byte,
 	currTxId [32]byte,
 ) (witness.Witness, error) {
 
-	innerAssignment := txivc.Sha256CircuitBaseCase[txivc.ScalarField, txivc.G1Affine, txivc.G2Affine, txivc.GTEl]{
-		RawTx: make([]uints.U8, len(rawTxBytes)),
+	innerAssignment := txivc.Sha256CircuitBaseCase{
+		RawTx:    make([]frontend.Variable, len(rawTxBytes)),
+		CurrTxId: make([]frontend.Variable, len(currTxId)),
 	}
 
 	//assign the current Txn data
-	//assign the current Txn data
-	//for ndx, entry := range rawTxBytes {
-	//	innerAssignment.RawTx[ndx] = entry
-	//}
-	copy(innerAssignment.RawTx[:], uints.NewU8Array(rawTxBytes))
-	copy(innerAssignment.CurrTxId[:], uints.NewU8Array(currTxId[:]))
-	//copy(innerAssignment.TokenId[:], uints.NewU8Array(currTxId[:])) //base case tokenId == txId
+	for ndx := range rawTxBytes {
+		innerAssignment.RawTx[ndx] = rawTxBytes[ndx]
+	}
+	for ndx := range currTxId {
+		innerAssignment.CurrTxId[ndx] = currTxId[ndx]
+	}
 
-	innerWitness, err := frontend.NewWitness(&innerAssignment, po.InnerField)
-
+	innerWitness, err := frontend.NewWitness(&innerAssignment, ecc.BLS12_377.ScalarField())
 	if err != nil {
 		return nil, err
 	}
 	return innerWitness, nil
+
 }
 
 func (po *BaseProof) CreateLightWitness(genesisTxId []byte) (*witness.Witness, error) {
@@ -175,7 +177,7 @@ func (po *BaseProof) CreateLightWitness(genesisTxId []byte) (*witness.Witness, e
 
 // generate innerVK, innerPK, compiled circuit and save to disk
 func (po *BaseProof) WriteKeys() error {
-	err := writeKeys(*po.VerifyingKey, *po.ProvingKey, "base_")
+	err := writeKeys(po.VerifyingKey, po.ProvingKey, "base_")
 	if err != nil {
 		return err
 	}
@@ -190,8 +192,8 @@ func (po *BaseProof) ReadKeys() error {
 		return err
 	}
 
-	po.ProvingKey = &pk
-	po.VerifyingKey = &vk
+	po.ProvingKey = pk
+	po.VerifyingKey = vk
 
 	return nil
 }
