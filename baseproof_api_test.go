@@ -23,7 +23,7 @@ func TestComputeBaseProof(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := txivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId)
+	genesisWitness, err := txivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId[:])
 
 	proof, err := bp.ComputeProof(genesisWitness)
 	assert.NoError(err)
@@ -37,7 +37,7 @@ func TestComputeBaseProof(t *testing.T) {
 	//publicWitness, err := genesisWitness.Public()
 	assert.NoError(err)
 
-	isVerified := bp.VerifyProof(publicWitness, &proof)
+	isVerified := bp.VerifyProof(publicWitness, proof)
 	assert.True(isVerified)
 
 }
@@ -63,7 +63,7 @@ func TestVerifyJsonProof(t *testing.T) {
 	publicWitness, err := txivc.CreateBaseCaseLightWitness(genesisTxId[:], txivc.InnerCurve.ScalarField())
 	assert.NoError(err)
 
-	isVerified := bp.VerifyProof(publicWitness, &txProof)
+	isVerified := bp.VerifyProof(publicWitness, txProof)
 	assert.True(isVerified)
 
 }
@@ -79,7 +79,7 @@ func TestProveAndVerifySplitSystems(t *testing.T) {
 	firstHash := sha256.Sum256(fullTxBytes)
 	genesisTxId := sha256.Sum256(firstHash[:])
 
-	genesisWitness, err := txivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId)
+	genesisWitness, err := txivc.CreateBaseCaseFullWitness(fullTxBytes, genesisTxId[:])
 
 	proof, err := bp.ComputeProof(genesisWitness)
 	assert.NoError(err)
@@ -97,7 +97,7 @@ func TestProveAndVerifySplitSystems(t *testing.T) {
 	//publicWitness, err := genesisWitness.Public()
 	assert.NoError(err)
 
-	isVerified := bp2.VerifyProof(publicWitness, &proof)
+	isVerified := bp2.VerifyProof(publicWitness, proof)
 	assert.True(isVerified)
 
 }
@@ -114,16 +114,16 @@ func TestProofSystemEquality(t *testing.T) {
 	//test for equality after ser/deser
 	var bp1VkBuf bytes.Buffer
 	var bp2VkBuf bytes.Buffer
-	(*bp.VerifyingKey).WriteRawTo(&bp1VkBuf)
-	(*bp2.VerifyingKey).WriteRawTo(&bp2VkBuf)
+	bp.VerifyingKey.WriteRawTo(&bp1VkBuf)
+	bp2.VerifyingKey.WriteRawTo(&bp2VkBuf)
 
 	assert.True(bytes.Equal(bp1VkBuf.Bytes(), bp2VkBuf.Bytes()))
 
 	//test for equality after ser/deser
 	var bp1PkBuf bytes.Buffer
 	var bp2PkBuf bytes.Buffer
-	(*bp.VerifyingKey).WriteRawTo(&bp1PkBuf)
-	(*bp2.VerifyingKey).WriteRawTo(&bp2PkBuf)
+	bp.VerifyingKey.WriteRawTo(&bp1PkBuf)
+	bp2.VerifyingKey.WriteRawTo(&bp2PkBuf)
 
 	assert.True(bytes.Equal(bp1PkBuf.Bytes(), bp2PkBuf.Bytes()))
 }

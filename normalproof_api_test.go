@@ -35,7 +35,7 @@ func TestComputeNormalProof(t *testing.T) {
 	//publicWitness, err := genesisWitness.Public()
 	assert.NoError(err)
 
-	isVerified := bp.VerifyProof(&publicBaseWitness, &proof)
+	isVerified := bp.VerifyProof(publicBaseWitness, proof)
 	assert.True(isVerified)
 
 	/***
@@ -53,7 +53,7 @@ func TestComputeNormalProof(t *testing.T) {
 	np, err := bootNormalProof(len(prefixBytes), len(postFixBytes), bp)
 	assert.NoError(err)
 
-	outerWitness, err := np.CreateFullWitness(publicBaseWitness, proof, *bp.VerifyingKey, prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
+	outerWitness, err := np.CreateFullWitness(publicBaseWitness, proof, bp.VerifyingKey, prefixBytes, prevTxnIdBytes, postFixBytes, currTxId[:])
 	assert.NoError(err)
 
 	outerProof, err := np.ComputeProof(*outerWitness)
@@ -63,7 +63,7 @@ func TestComputeNormalProof(t *testing.T) {
 	outerPublicWitness, err := (*outerWitness).Public()
 	assert.NoError(err)
 
-	isOuterVerified := np.VerifyProof(&outerPublicWitness, &outerProof)
+	isOuterVerified := np.VerifyProof(outerPublicWitness, outerProof)
 
 	assert.True(isOuterVerified)
 

@@ -24,16 +24,16 @@ type NormalProof struct {
 	verifierOptions backend.VerifierOption
 	proverOptions   backend.ProverOption
 
-	Ccs      *constraint.ConstraintSystem
-	innerCcs *constraint.ConstraintSystem
+	Ccs      constraint.ConstraintSystem
+	innerCcs constraint.ConstraintSystem
 
-	VerifyingKey *native_groth16.VerifyingKey
-	ProvingKey   *native_groth16.ProvingKey
+	VerifyingKey native_groth16.VerifyingKey
+	ProvingKey   native_groth16.ProvingKey
 
-	BaseProofObj *BaseProof
+	BaseProofObj BaseProof
 }
 
-func NewNormalProof(prefixSize int, postfixSize int, baseProof *BaseProof) (*NormalProof, error) {
+func NewNormalProof(prefixSize int, postfixSize int, baseProof BaseProof) (*NormalProof, error) {
 
 	po := &NormalProof{}
 
@@ -63,19 +63,19 @@ func NewNormalProof(prefixSize int, postfixSize int, baseProof *BaseProof) (*Nor
 
 func (po *NormalProof) SetupKeys() error {
 
-	pk, vk, err := native_groth16.Setup(*po.Ccs)
+	pk, vk, err := native_groth16.Setup(po.Ccs)
 	if err != nil {
 		return err
 	}
 
-	po.VerifyingKey = &vk
-	po.ProvingKey = &pk
+	po.VerifyingKey = vk
+	po.ProvingKey = pk
 
 	return nil
 }
 
 func (po *NormalProof) ComputeProof(fullWitness witness.Witness) (native_groth16.Proof, error) {
-	return native_groth16.Prove(*po.Ccs, *po.ProvingKey, fullWitness, po.proverOptions)
+	return native_groth16.Prove(po.Ccs, po.ProvingKey, fullWitness, po.proverOptions)
 }
 
 func (po *NormalProof) CreateLightWitness(txId []byte) (*witness.Witness, error) {
@@ -157,7 +157,7 @@ func (po *NormalProof) ReadKeys() error {
 	return nil
 }
 
-func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerField *big.Int, curveId ecc.ID) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
+func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("norm_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
@@ -171,7 +171,7 @@ func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerFie
 		//normalCcs, provingKey, verifyingKey, err := txivc.SetupNormalCase(outerField, *normalCcs)
 
 		normalCcsFile, err := os.Create("norm_ccs.cbor")
-		_, err = (*normalCcs).WriteTo(normalCcsFile)
+		_, err = (normalCcs).WriteTo(normalCcsFile)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -200,7 +200,7 @@ func (po *NormalProof) readSetupParams(prefixSize int, postfixSize int, outerFie
 	}
 }
 
-func (po *NormalProof) readCircuitParams() (*constraint.ConstraintSystem, error) {
+func (po *NormalProof) readCircuitParams() (constraint.ConstraintSystem, error) {
 
 	normCcs := native_groth16.NewCS(txivc.InnerCurve)
 
@@ -214,12 +214,12 @@ func (po *NormalProof) readCircuitParams() (*constraint.ConstraintSystem, error)
 	}
 	ccsFile.Close()
 
-	return &normCcs, nil
+	return normCcs, nil
 }
 
-func (po *NormalProof) VerifyProof(witness *witness.Witness, proof *native_groth16.Proof) bool {
+func (po *NormalProof) VerifyProof(witness witness.Witness, proof native_groth16.Proof) bool {
 
-	err := native_groth16.Verify(*proof, *po.VerifyingKey, *witness, po.verifierOptions)
+	err := native_groth16.Verify(proof, po.VerifyingKey, witness, po.verifierOptions)
 	if err != nil {
 		fmt.Printf("Fail on proof verification! %s\n", err)
 		return false

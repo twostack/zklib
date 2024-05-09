@@ -23,9 +23,9 @@ type BaseProof struct {
 	verifierOptions backend.VerifierOption
 	proverOptions   backend.ProverOption
 
-	Ccs          *constraint.ConstraintSystem
-	VerifyingKey *native_groth16.VerifyingKey
-	ProvingKey   *native_groth16.ProvingKey
+	Ccs          constraint.ConstraintSystem
+	VerifyingKey native_groth16.VerifyingKey
+	ProvingKey   native_groth16.ProvingKey
 }
 
 func NewBaseProof(baseTxSize int) (*BaseProof, error) {
@@ -55,14 +55,14 @@ func NewBaseProof(baseTxSize int) (*BaseProof, error) {
 	return po, nil
 }
 
-func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (*constraint.ConstraintSystem, *native_groth16.ProvingKey, *native_groth16.VerifyingKey, error) {
+func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ecc.ID) (constraint.ConstraintSystem, native_groth16.ProvingKey, native_groth16.VerifyingKey, error) {
 
 	if _, err := os.Stat("base_ccs.cbor"); errors.Is(err, os.ErrNotExist) {
 
 		baseCcs, provingKey, verifyingKey, err := txivc.SetupBaseCase(txSize, innerField)
 
 		baseccsFile, err := os.Create("base_ccs.cbor")
-		_, err = (*baseCcs).WriteTo(baseccsFile)
+		_, err = (baseCcs).WriteTo(baseccsFile)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -91,7 +91,7 @@ func (po *BaseProof) readSetupParams(txSize int, innerField *big.Int, curveId ec
 	}
 }
 
-func (po *BaseProof) readCircuitParams() (*constraint.ConstraintSystem, error) {
+func (po *BaseProof) readCircuitParams() (constraint.ConstraintSystem, error) {
 
 	baseCcs := native_groth16.NewCS(txivc.InnerCurve)
 
@@ -105,7 +105,7 @@ func (po *BaseProof) readCircuitParams() (*constraint.ConstraintSystem, error) {
 	}
 	ccsFile.Close()
 
-	return &baseCcs, nil
+	return baseCcs, nil
 }
 
 //func (po *BaseProof) SetupKeys() error {
@@ -130,11 +130,11 @@ func (po *BaseProof) ComputeProof(fullWitness witness.Witness) (
 	native_groth16.Proof,
 	error,
 ) {
-	return native_groth16.Prove(*po.Ccs, *po.ProvingKey, fullWitness, po.proverOptions)
+	return native_groth16.Prove(po.Ccs, po.ProvingKey, fullWitness, po.proverOptions)
 }
 
-func (po *BaseProof) VerifyProof(witness *witness.Witness, proof *native_groth16.Proof) bool {
-	err := native_groth16.Verify(*proof, *po.VerifyingKey, *witness, po.verifierOptions)
+func (po *BaseProof) VerifyProof(witness witness.Witness, proof native_groth16.Proof) bool {
+	err := native_groth16.Verify(proof, po.VerifyingKey, witness, po.verifierOptions)
 	if err != nil {
 		fmt.Printf("Fail on proof verification! %s\n", err)
 		return false
@@ -171,7 +171,7 @@ func (po *BaseProof) CreateBaseCaseWitness(
 
 }
 
-func (po *BaseProof) CreateLightWitness(genesisTxId []byte) (*witness.Witness, error) {
+func (po *BaseProof) CreateLightWitness(genesisTxId []byte) (witness.Witness, error) {
 	return txivc.CreateBaseCaseLightWitness(genesisTxId, po.InnerField)
 }
 
