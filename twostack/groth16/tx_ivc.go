@@ -32,12 +32,6 @@ func (circuit *Sha256CircuitBaseCase) Define(api frontend.API) error {
 		rawTxArr[ndx] = uapi.ByteValueOf(circuit.RawTx[ndx])
 	}
 
-	//assign the txid ? maybe not needed
-	//txIdArr := make([]uints.U8, len(circuit.RawTx))
-	//for ndx := range circuit.CurrTxId {
-	//	txIdArr[ndx] = uapi.ByteValueOf(circuit.CurrTxId[ndx])
-	//}
-
 	//do double-sha256
 	firstHash, err := calculateSha256(api, rawTxArr)
 	if err != nil {
@@ -64,9 +58,9 @@ type Sha256Circuit[FR emulated.FieldParams, G1El algebra.G1ElementT, G2El algebr
 	PreviousVk      stdgroth16.VerifyingKey[G1El, G2El, GtEl]
 	PreviousWitness stdgroth16.Witness[FR]
 
-	CurrTxPrefix []frontend.Variable //5
-	PrevTxId     []frontend.Variable //32
-	CurrTxPost   []frontend.Variable //188
+	CurrTxPrefix []frontend.Variable
+	PrevTxId     []frontend.Variable
+	CurrTxPost   []frontend.Variable
 
 	//double-sha256 hash of the concatenation of above fields. Not reversed, so not quite a TxId
 	CurrTxId []frontend.Variable `gnark:",public"` //probably needs to provide the reversed version to save circuit space

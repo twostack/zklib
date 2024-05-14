@@ -33,11 +33,11 @@ type NormalProof struct {
 	BaseProofObj BaseProof
 }
 
-func NewNormalProof(prefixSize int, postfixSize int, baseProof BaseProof) (*NormalProof, error) {
+func NewNormalProof(prefixSize int, postfixSize int, baseProof *BaseProof) (*NormalProof, error) {
 
 	po := &NormalProof{}
 
-	po.BaseProofObj = baseProof
+	po.BaseProofObj = *baseProof
 
 	po.InnerField = txivc.InnerCurve.ScalarField()
 	po.OuterField = txivc.OuterCurve.ScalarField()
